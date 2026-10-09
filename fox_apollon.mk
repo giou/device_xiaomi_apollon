@@ -18,26 +18,21 @@
 # 	Please maintain this if you use this script or any part of it
 #
 
-# OrangeFox-specific settings
+# OrangeFox-specific settings - cleaned for fox_16.0 / LOS official
+# (removed: FOX_VERSION [obsolete], OF_DONT_PATCH_ENCRYPTED_DEVICE /
+#  OF_KEEP_DM_VERITY [always-on], OF_SUPPORT_ALL_BLOCK_OTA_UPDATES /
+#  OF_FIX_OTA_UPDATE_MANUAL_FLASH_ERROR / OF_DISABLE_MIUI_OTA_BY_DEFAULT /
+#  OF_NO_MIUI_PATCH_WARNING [legacy], OF_IGNORE_LOGICAL_MOUNT_ERRORS [obsolete])
 OF_USE_GREEN_LED := 0
-OF_IGNORE_LOGICAL_MOUNT_ERRORS := 1
-OF_DONT_PATCH_ENCRYPTED_DEVICE := 1
 OF_NO_TREBLE_COMPATIBILITY_CHECK := 1
-OF_NO_MIUI_PATCH_WARNING := 1
-OF_MAINTAINER := giou-apollon-FBEv1
-FOX_VERSION := $(date +%y.%m.%d)
+OF_MAINTAINER := giou
+FOX_MAINTAINER_PATCH_VERSION := apollon-FBEv1
 
 OF_ENABLE_LPTOOLS := 1
 OF_QUICK_BACKUP_LIST := /boot;/data;
 
 # avb 2.0
 OF_PATCH_AVB20 := 1
-
-# OTA
-OF_KEEP_DM_VERITY := 1
-OF_SUPPORT_ALL_BLOCK_OTA_UPDATES := 1
-OF_FIX_OTA_UPDATE_MANUAL_FLASH_ERROR := 1
-OF_DISABLE_MIUI_OTA_BY_DEFAULT := 1
 
 # try to prevent potential data format errors
 OF_UNBIND_SDCARD_F2FS := 1
