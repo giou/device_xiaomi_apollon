@@ -55,4 +55,5 @@ PRODUCT_PROPERTY_OVERRIDES += ro.twrp.version.skkk.code=$(TW_SKKK_VER_CODE)
 endif
 
 TWRP_REQUIRED_MODULES += miui_prebuilt \
-    magisk_prebuilt
+    magisk_prebuilt \
+    erofsfuse.recovery
