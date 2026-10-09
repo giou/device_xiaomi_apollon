@@ -23,13 +23,13 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
 # Configure twrp
 $(call inherit-product, vendor/twrp/config/common.mk)
 
-PRODUCT_PACKAGES += \
-    bootctrl.xiaomi_sm8250.recovery \
-    android.hardware.boot@1.2-impl-qti \
-    android.hardware.boot@1.2-impl-qti.recovery \
-    android.hardware.boot@1.2-service \
-    android.hardware.health@2.1-impl \
-    android.hardware.health@2.1-service
+# NOTE (fox_16.0): no HAL packages - the HIDL boot/health HALs from the
+# 12.1 tree do not exist in the 16.0 manifest (reference: mondrian tree
+# ships no HALs either). apollon is A-only (dedicated /recovery), so no
+# bootctrl needed for slot handling.
+
+# Recovery-only build with prebuilt kernel: skip OTA kernel VINTF check
+PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false
 
 # SHIPPING API - 29 for FBEv1 (ice), 30 for FBEv2
 PRODUCT_SHIPPING_API_LEVEL := 29
