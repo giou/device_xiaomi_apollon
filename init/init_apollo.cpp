@@ -83,14 +83,22 @@ void vendor_load_properties() {
     property_override("ro.bootimage.build.date.utc", "1577808000");
     property_override("ro.build.date.utc", "1577808000");
 
-    // Check for China vs Global variants
-    bool isCN = GetProperty("ro.boot.hwc", "") == "CN";
+    // Variant detection aligned with LineageOS
+    // android_device_xiaomi_apollon libvariant (lineage-23.2):
+    // std sku (M2007J3SY) -> Mi 10T, pro sku (M2007J3SG) -> Mi 10T Pro,
+    // CN hwc -> Redmi K30S Ultra (M2007J3SC)
+    std::string hwc = GetProperty("ro.boot.hwc", "");
+    std::string sku = GetProperty("ro.boot.product.hardware.sku", "");
+    std::string cert = GetProperty("ro.boot.cert", "");
 
-    if (isCN) {
+    if (hwc == "CN") {
         // Redmi K30S Ultra
         model_property_override("apollo", "Redmi K30S Ultra");
+    } else if (sku == "pro" || cert == "M2007J3SG") {
+        // Mi 10T Pro
+        model_property_override("apollo", "Mi 10T Pro");
     } else {
-        // Mi 10T / Mi 10T Pro
-        model_property_override("apollo", "Mi 10T / 10T Pro");
+        // Mi 10T
+        model_property_override("apollo", "Mi 10T");
     }
 }
