@@ -31,8 +31,8 @@ PRODUCT_PACKAGES += \
     android.hardware.health@2.1-impl \
     android.hardware.health@2.1-service
 
-# SHIPPING API
-PRODUCT_SHIPPING_API_LEVEL := 30
+# SHIPPING API - 29 for FBEv1 (ice), 30 for FBEv2
+PRODUCT_SHIPPING_API_LEVEL := 29
 
 # VNDK API
 PRODUCT_TARGET_VNDK_VERSION := 31
