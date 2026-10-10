@@ -55,21 +55,13 @@ void property_override(const std::string& name, const std::string& value)
     }
 }
 
-void model_property_override(const std::string& device, const std::string& model)
+void model_property_override(const std::string& model)
 {
-    property_override("ro.product.device", device);
-    property_override("ro.product.odm.device", device);
-    property_override("ro.product.system.device", device);
-    property_override("ro.product.vendor.device", device);
-    property_override("ro.build.product", device);
-    property_override("ro.product.name", device);
-    property_override("ro.product.odm.name", device);
-    property_override("ro.product.product.device", device);
-    property_override("ro.product.product.name", device);
-    property_override("ro.product.system.name", device);
-    property_override("ro.product.system_ext.device", device);
-    property_override("ro.product.system_ext.name", device);
-    property_override("ro.product.vendor.name", device);
+    // NOTE: device codename props intentionally untouched. On the 16.0 build
+    // they are already read-only by the time init runs (overriding
+    // ro.product.device fails with PROP_ERROR_READ_ONLY_PROPERTY), and the
+    // build-time value "apollon" is correct anyway (OTA asserts cover
+    // apollon,apollo,apollopro). Only the model name varies by variant.
     property_override("ro.product.model", model);
     property_override("ro.product.odm.model", model);
     property_override("ro.product.system.model", model);
@@ -93,12 +85,12 @@ void vendor_load_properties() {
 
     if (hwc == "CN") {
         // Redmi K30S Ultra
-        model_property_override("apollo", "Redmi K30S Ultra");
+        model_property_override("Redmi K30S Ultra");
     } else if (sku == "pro" || cert == "M2007J3SG") {
         // Mi 10T Pro
-        model_property_override("apollo", "Mi 10T Pro");
+        model_property_override("Mi 10T Pro");
     } else {
         // Mi 10T
-        model_property_override("apollo", "Mi 10T");
+        model_property_override("Mi 10T");
     }
 }
