@@ -56,6 +56,6 @@ ifneq ($(TW_SKKK_VER_CODE),)
 PRODUCT_PROPERTY_OVERRIDES += ro.twrp.version.skkk.code=$(TW_SKKK_VER_CODE)
 endif
 
-TWRP_REQUIRED_MODULES += miui_prebuilt \
+TWRP_REQUIRED_MODULES += apollon_firmware_prebuilt \
     magisk_prebuilt \
     erofsfuse.recovery
