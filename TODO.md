@@ -34,7 +34,7 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
 - [ ] `adb sideload` + USB-OTG sanity.
 - [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
-      auto-rebooted to system).
+      auto-rebooted to system; Magisk 31.0 survived with Ramdisk Yes).
 
 ## Upstream workarounds to drop when fixed upstream
 
