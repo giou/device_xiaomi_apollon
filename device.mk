@@ -43,10 +43,9 @@ PRODUCT_SOONG_NAMESPACES += \
 
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 
-# otacert
+# otacert (LineageOS-official target: no MIUI keys)
 PRODUCT_EXTRA_RECOVERY_KEYS += \
-    $(DEVICE_PATH)/security/magisk \
-    $(DEVICE_PATH)/security/miui_releasekey
+    $(DEVICE_PATH)/security/magisk
 
 PRODUCT_PROPERTY_OVERRIDES += ro.twrp.device.name=apollon
 
