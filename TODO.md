@@ -27,7 +27,7 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 
 - [x] Vibrator HAL stays up on v4+ build (`IVibrator/default` registers, no
       `status 1` loop in dmesg) and touch is instant with haptics on.
-      (Verified: 0 service exits, UI snappy.)
+      (Verified: 0 service exits, UI snappy, vibration felt on touch.)
 - [x] PIN decrypt and MTP (device-tested).
 - [ ] Password/pattern decrypt on a *locked* LOS 23 install (PIN done; the
       other two credential types share the gatekeeper path, low risk).
