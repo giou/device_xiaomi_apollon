@@ -20,8 +20,9 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 
 ## Pending verification (device tests)
 
-- [ ] Vibrator HAL stays up on v4+ build (`IVibrator/default` registers, no
+- [x] Vibrator HAL stays up on v4+ build (`IVibrator/default` registers, no
       `status 1` loop in dmesg) and touch is instant with haptics on.
+      (Verified: 0 service exits, UI snappy.)
 - [ ] PIN/password/pattern decrypt on a *locked* LOS 23 install (so far only
       tested with lock removed + `default_password` path).
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
