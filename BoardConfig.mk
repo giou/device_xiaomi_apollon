@@ -140,6 +140,15 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
         echo "ERROR: vibrator HAL not built - was vendor/qcom/opensource/vibrator synced via twrp.dependencies?"; \
         exit 1; \
     fi;
+# Maintainer avatar for the About page (overrides theme default
+# twres/images/Default/About/maintainer.png, shown next to OF_MAINTAINER)
+BOARD_RECOVERY_IMAGE_PREPARE += \
+    if [ -f $(DEVICE_PATH)/avatar/maintainer.png ]; then \
+        cp -f $(DEVICE_PATH)/avatar/maintainer.png $(TARGET_RECOVERY_ROOT_OUT)/twres/images/Default/About/maintainer.png; \
+    else \
+        echo "ERROR: $(DEVICE_PATH)/avatar/maintainer.png missing"; \
+        exit 1; \
+    fi;
 
 # Recovery
 BOARD_HAS_LARGE_FILESYSTEM := true
