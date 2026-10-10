@@ -46,6 +46,12 @@ PRODUCT_SOONG_NAMESPACES += \
 
 PRODUCT_USE_DYNAMIC_PARTITIONS := true
 
+# apollon is A-only (no slots). The 16.0 build system switches
+# AB_OTA_UPDATER on for dynamic-partition devices, which wrongly shows
+# dead Slot A/B buttons in the reboot menu. Force it off; verified via the
+# "AB_OTA_UPDATER :=" line in the build/recovery log.
+AB_OTA_UPDATER := false
+
 # otacert (LineageOS-official target: no MIUI keys)
 PRODUCT_EXTRA_RECOVERY_KEYS += \
     $(DEVICE_PATH)/security/magisk
