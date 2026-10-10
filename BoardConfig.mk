@@ -127,6 +127,7 @@ TARGET_RECOVERY_DEVICE_MODULES += \
     vendor.qti.hardware.vibrator.impl \
     vendor.qti.hardware.vibratorOL.impl \
     vendor.qti.hardware.vibratorSel.impl \
+    libqtivibratoreffectoffload \
     libexpat
 RECOVERY_LIBRARY_SOURCE_FILES += \
     $(TARGET_OUT_SHARED_LIBRARIES)/libexpat.so
@@ -134,7 +135,7 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
     mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/vendor/bin/hw $(TARGET_RECOVERY_ROOT_OUT)/vendor/lib64/hw; \
     if [ -f $(TARGET_OUT_VENDOR_EXECUTABLES)/hw/vendor.qti.hardware.vibrator.service ]; then \
         cp -f $(TARGET_OUT_VENDOR_EXECUTABLES)/hw/vendor.qti.hardware.vibrator.service $(TARGET_RECOVERY_ROOT_OUT)/vendor/bin/hw/; \
-        cp -f $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/vendor.qti.hardware.vibrator*.so $(TARGET_RECOVERY_ROOT_OUT)/vendor/lib64/; \
+        cp -f $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/*vibrator*.so $(TARGET_RECOVERY_ROOT_OUT)/vendor/lib64/; \
     else \
         echo "ERROR: vibrator HAL not built - was vendor/qcom/opensource/vibrator synced via twrp.dependencies?"; \
         exit 1; \
