@@ -17,10 +17,10 @@ working data decryption (FBEv1 + metadata wrappedkey).
 
 Branches:
 
-- **`fox_16.0`** (default) — native Android 16 build (`fox_16.0` manifest,
-  SDK 36, no version spoofs). This is the maintained branch.
-- `ofox` — frozen `fox_12.1` diagnostic baseline (SDK 32). Proven: cannot
-  unwrap LOS 23 metadata (A16 `vold` vs 12.1 crypto stack). Kept for reference.
+- **`fox_16.0`** (default, only branch) — native Android 16 build (`fox_16.0`
+  manifest, SDK 36, no version spoofs). The `fox_12.1` diagnostic baseline was
+  removed: proven unable to unwrap LOS 23 metadata (A16 `vold` vs 12.1 crypto
+  stack), never to be used again.
 
 ## Status (fox_16.0)
 
