@@ -177,7 +177,6 @@ TWRP_INCLUDE_LOGCAT := true
 TARGET_USES_LOGD := true
 TW_NO_SCREEN_BLANK := true
 TW_HAS_EDL_MODE := false
-TW_SUPPORT_INPUT_AIDL_HAPTICS :=true
 TW_BACKUP_EXCLUSIONS := /data/fonts,/data/adb/ap,/data/adb/ksu
 
 # Enable early preparation of /data/media for emulated storage
