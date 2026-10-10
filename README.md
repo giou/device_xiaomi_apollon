@@ -26,14 +26,15 @@ Branches:
 
 Verified on device:
 
-- Boot, display (144 Hz), touch (instant, haptics working)
-- Data decrypt with lock removed (`default_password` path, 109 GB visible)
+- Boot, display (144 Hz), touch (instant, haptics working, vibration felt)
+- Data decrypt, including PIN on a locked install (109 GB visible)
 - Correct variant naming (`Mi_10T_Pro` from `pro` sku / `M2007J3SG`)
+- MTP, LineageOS OTA from the Updater (clean apply + boot, Magisk survived)
 
 Pending device tests — see [TODO.md](TODO.md):
 
-- PIN/password/pattern decrypt on a *locked* install
-- FBE backup/restore end-to-end, `adb sideload`, MTP, USB-OTG
+- Password/pattern decrypt (PIN done; same gatekeeper path, low risk)
+- FBE backup/restore end-to-end, `adb sideload`, USB-OTG
 
 ## Build
 
