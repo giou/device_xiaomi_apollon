@@ -5,18 +5,16 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 
 ## Must fix before calling it finished
 
-- [ ] **logd crash loop (no logcat).** A16 `system/logging/logd/main.cpp:216-218`
-      does `SetProperty("ro.logd.kernel", "true")`, fatal on failure. First
-      start likely dies on missing `/etc/task_profiles.json` scheduling setup
-      (`failed to set background scheduling policy`, see dmesg), then every
-      restart aborts on the already-set read-only prop (`SIGABRT`,
-      `PROP_ERROR_READ_ONLY_PROPERTY`). Fix needs a source patch to the
-      upstream manifest project `system/logging` — the builder can currently
-      only *add* repos (twrp.dependencies), not override platform ones, so
-      this also needs builder support for manifest overrides/replace rules.
-      Impact today: none on recovery function (decrypt/mount/flash/backup
-      don't use logd); only `logcat` unavailable. Fix when a bug appears
-      that is only visible via logcat.
+- [ ] **logd crash loop (no logcat).** Chain: A16 `system/logging/logd`
+      `DropPrivs()` aborts when `set_sched_policy(SP_BACKGROUND)` fails (no
+      `/etc/task_profiles.json` in recovery), then every restart aborts
+      re-setting the already-set `ro.logd.kernel` (`main.cpp:216-218`,
+      `SIGABRT`). Attempted fix (unbuilt): minimal `task_profiles.json`
+      stub with empty `SCHED_SP_BACKGROUND` actions in ramdisk `/etc`.
+      If logd still dies, the fallback is a source patch to `system/logging`
+      (tolerate both failures) — needs manifest-override support in the
+      builder (it can only *add* repos today) plus a fork to carry it.
+      Impact: none on recovery function; only `logcat` unavailable.
 
 ## Pending verification (device tests)
 
