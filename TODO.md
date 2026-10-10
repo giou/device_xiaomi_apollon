@@ -5,6 +5,13 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 
 ## Must fix before calling it finished
 
+- [x] **"Flash current OrangeFox" wrote to `/boot` (bricked system).**
+      Upstream `twrpRepacker` defaulted `dest_partition` to `/boot`, only
+      switching to `/recovery` for slotted devices. Fixed in builder
+      (`e593eeb`): target `/recovery` whenever the partition exists.
+      Unbuilt — needs a device test (fastboot boot → button → verify
+      recovery partition updated, system still boots). Do NOT press the
+      button on older builds.
 - [ ] **logd crash loop (no logcat).** Chain: A16 `system/logging/logd`
       `DropPrivs()` aborts when `set_sched_policy(SP_BACKGROUND)` fails (no
       `/etc/task_profiles.json` in recovery), then every restart aborts
