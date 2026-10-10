@@ -1,78 +1,87 @@
-#  Recovery Tree for Xiaomi Mi 10T/Mi 10T Pro (apollo)
+# OrangeFox device tree for Xiaomi apollon (Mi 10T / Mi 10T Pro / Redmi K30S Ultra)
 
-## Device specifications
+Recovery device tree targeting **official LineageOS 23 (Android 16)** with
+working data decryption (FBEv1 + metadata wrappedkey).
 
-| Feature                 | Specification                                                              |
-| :---------------------- | :--------------------------------                                          |
-| CPU                     | Octa-core (1x2.84 GHz Kryo 585 & 3x2.42 GHz Kryo 585 & 4x1.80 GHz Kryo 585)|
-| Chipset                 | Qualcomm SM8250 Snapdragon 865 (7 nm)                                      |
-| GPU                     | Adreno 650                                                                 |
-| Memory                  | 6 GB / 8 GB                                                                |
-| Shipped Software        | Android 10, MIUI 12                                                        |
-| Storage                 | 128 GB / 256 GB                                                            |
-| Battery                 | 5000 mAh                                                                   |
-| Dimensions              | 165.1 x 76.4 x 9.3 mm (6.5 x 3.01 x 0.37 in)                               |
-| Display                 | 6.67 inches, 107.4 cm2 (~85.2% screen-to-body ratio)                       |
-| Rear Camera             | 64 MP, f/1.9, 26mm (wide), 1/1.73", 0.8µm, PDAF                            |
-|                         | 13 MP, f/2.4, 123 (ultrawide), 1.12µm                                     |
-|                         | 5 MP, f/2.4, (macro), AF                                                   |
-| Front Camera            | 20 MP, f/2.2, 27mm (wide), 1/3.4", 0.8µm                                   |
-| Release Date            | October 2020                                                               |
+| Spec | |
+| :--- | :--- |
+| SoC | Qualcomm SM8250 Snapdragon 865 |
+| CPU | Octa-core Kryo 585 (1x2.84 + 3x2.42 + 4x1.80 GHz) |
+| GPU | Adreno 650 |
+| RAM | 6 / 8 GB |
+| Storage | 128 / 256 GB (FBEv1, `/metadata` wrappedkey) |
+| Display | 6.67" 1080x2400 IPS, 144 Hz |
+| Battery | 5000 mAh |
+| OTA assert | `apollon,apollo,apollopro` |
+| Kernel | 4.19.325 (LineageOS `android_kernel_xiaomi_sm8250:lineage-23.2` boot image) |
 
-## Device Picture
+Branches:
 
-![Xiaomi Mi 10T/Mi 10T Pro](https://www.bug.hr/img/xiaomi-mi-10t-serija-telefona-za-kreativce_oFqltN.png "Xiaomi Mi 10T/Mi 10T Pro/Redmi K30S Ultra")
+- **`fox_16.0`** (default) — native Android 16 build (`fox_16.0` manifest,
+  SDK 36, no version spoofs). This is the maintained branch.
+- `ofox` — frozen `fox_12.1` diagnostic baseline (SDK 32). Proven: cannot
+  unwrap LOS 23 metadata (A16 `vold` vs 12.1 crypto stack). Kept for reference.
 
-## Features
+## Status (fox_16.0)
 
-**Works**
+Verified on device:
 
-- Booting.
-- **Decryption** (Android 16)
-- ADB
-- MTP
-- OTG
-- Super partition functions
-- Vibration
+- Boot, display (144 Hz), touch (instant, haptics working)
+- Data decrypt with lock removed (`default_password` path, 109 GB visible)
+- Correct variant naming (`Mi_10T_Pro` from `pro` sku / `M2007J3SG`)
 
-## Compile
+Pending device tests — see [TODO.md](TODO.md):
 
-First checkout minimal twrp with omnirom tree:
+- PIN/password/pattern decrypt on a *locked* install
+- FBE backup/restore end-to-end, `adb sideload`, MTP, USB-OTG
 
-```
-repo init -u git://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b twrp-11
-repo sync
-```
+## Build
 
-Then clone the recovery tree of your choice:
+Sync the `fox_16.0` manifest with the OrangeFox sync script, then clone this
+tree to `device/xiaomi/apollon`:
 
 ```
-git clone https://github.com/murtazakolachi/device_xiaomi_apollo_recovery -b twrp device/xiaomi/apollo
+./orangefox_sync.sh --branch 16.0 --path ~/OrangeFox_16.0
+cd ~/OrangeFox_16.0
+git clone --depth=1 --single-branch --branch fox_16.0 \
+  https://github.com/giou/device_xiaomi_apollon.git device/xiaomi/apollon
 ```
 
-Use ccache
-```
-#Enable ccache
-export USE_CCACHE=1
-export CCACHE_EXEC=$(which ccache)
-```
+Extra sources (`vendor/qcom/opensource/vibrator` for the AIDL vibrator HAL)
+are declared in [twrp.dependencies](twrp.dependencies) and cloned by the
+[OrangeFox-Action-Builder](https://github.com/giou/OrangeFox-Action-Builder)
+`Clone TWRP dependencies` step — or clone them manually to the listed
+`target_path`.
 
-Finally execute these:
-
-```
-export ALLOW_MISSING_DEPENDENCIES=true
-. build/envsetup.sh
-lunch twrp_apollo-eng
-mka recoveryimage
-```
-
-To test it:
+Build:
 
 ```
-fastboot boot out/target/product/apollo/recovery.img
+source build/envsetup.sh
+lunch twrp_apollon-bp2a-eng
+mka adbd recoveryimage
 ```
 
-## Thanks
-- [FsCrypt fix by mauronofrio](https://github.com/mauronofrio/android_bootable_recovery)
-- [Decryption by bigbiff](https://github.com/bigbiff/android_bootable_recovery)
-- [Oneplus 8 TWRP by mauronofrio](https://github.com/mauronofrio/android_device_oneplus_instantnoodle_TWRP)
+Out: `out/target/product/apollon/OrangeFox-R12.0-fox16.0-Unofficial-apollon.img`
+(`R12.0` is the OrangeFox release version, not Android; `fox16.0` is the
+manifest branch.)
+
+## Notes for maintainers
+
+- FBEv1 (`fileencryption=ice`, `TW_USE_FSCRYPT_POLICY := 1`) matches
+  LineageOS. FBEv2 trees are for MIUI/HyperOS and will *not* decrypt LOS.
+- `vendorsetup.sh` is mondrian-style with an `FDEVICE` guard — the `fox_16.0`
+  manifest sources every device tree's `vendorsetup.sh` at lunch.
+- `TARGET_RECOVERY_PIXEL_FORMAT` must stay **unquoted**: the 16.0 soong
+  config emitter writes it raw into `product_config.json`.
+- The vibrator HAL is source-built; `BOARD_RECOVERY_IMAGE_PREPARE` stages it
+  into the ramdisk and fails loudly if it wasn't built.
+- [TODO.md](TODO.md) is the finish list — keep it current.
+
+## Credits
+
+- Base tree: [MurtazaKolachi/device_xiaomi_ofox_apollo](https://github.com/MurtazaKolachi/device_xiaomi_ofox_apollo)
+  (`ofox` branch) and [sekaiacg/android_device_xiaomi_umi_TWRP](https://github.com/sekaiacg/android_device_xiaomi_umi_TWRP)
+  (SKKK FBEv1 reference)
+- LOS device/kernel/vendor: LineageOS + TheMuppets (`apollon`, `sm8250-common`)
+- Vibrator HAL: `LineageOS/android_vendor_qcom_opensource_vibrator`
+- OrangeFox Recovery Project
