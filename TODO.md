@@ -33,9 +33,8 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
       other two credential types share the gatekeeper path, low risk).
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
 - [ ] `adb sideload` + USB-OTG sanity.
-- [ ] LineageOS OTA update from the Updater (ROM Survival + Magisk/addon
-      survival; verify the update applies and boots, recovery not
-      overwritten).
+- [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
+      auto-rebooted to system).
 
 ## Upstream workarounds to drop when fixed upstream
 
