@@ -159,6 +159,8 @@ TW_THEME := portrait_hdpi
 TW_DEVICE_VERSION := apollon-LOS23-16.0-v1
 RECOVERY_SDCARD_ON_DATA := true
 TARGET_RECOVERY_QCOM_RTC_FIX := true
+# Legacy battery services (reference 16.0 trees set this; apollon PMIC predates AIDL health)
+TW_USE_LEGACY_BATTERY_SERVICES := true
 TW_EXCLUDE_DEFAULT_USB_INIT := true
 TW_EXCLUDE_ENCRYPTED_BACKUPS := false
 TW_EXTRA_LANGUAGES := true
