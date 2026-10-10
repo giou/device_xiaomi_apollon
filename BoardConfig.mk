@@ -165,7 +165,14 @@ else
 PLATFORM_VERSION := 16
 endif
 PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
-PLATFORM_SECURITY_PATCH := 2026-09-01
+# NOTE: patch pinned to 2099-12-31 (TWRP/SKKK convention), NOT the ROM's SPL.
+# QTI Keymaster unwrapping is version-sensitive: a recovery stamping an older
+# SPL than the installed ROM (e.g. 2026-09-01 vs 2026-10-01) fails metadata
+# unwrap and breaks decrypt after every monthly OTA. A far-future stamp
+# always satisfies version checks, so decrypt survives SPL bumps; only
+# kernel/blob drift can still break it (refresh those per nightly).
+# Harmless here: bootloader is unlocked, AVB rollback unenforced.
+PLATFORM_SECURITY_PATCH := 2099-12-31
 VENDOR_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
 TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
