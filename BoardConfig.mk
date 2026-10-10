@@ -121,7 +121,9 @@ TARGET_PLATFORM_DEVICE_BASE := /devices/soc/
 
 # Recovery
 BOARD_HAS_LARGE_FILESYSTEM := true
-TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+# NOTE: no surrounding quotes - soong_extra_config.mk emits this raw into
+# product_config.json (quoted value breaks JSON parsing on fox_16.0)
+TARGET_RECOVERY_PIXEL_FORMAT := RGBX_8888
 
 # Crypto
 BOARD_USES_QCOM_FBE_DECRYPTION := true
