@@ -23,10 +23,13 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
 # Configure twrp
 $(call inherit-product, vendor/twrp/config/common.mk)
 
-# NOTE (fox_16.0): no HAL packages - the HIDL boot/health HALs from the
-# 12.1 tree do not exist in the 16.0 manifest (reference: mondrian tree
-# ships no HALs either). apollon is A-only (dedicated /recovery), so no
-# bootctrl needed for slot handling.
+# NOTE (fox_16.0): no HIDL boot/health HAL packages - they do not exist in
+# the 16.0 manifest, and apollon is A-only (dedicated /recovery, no slots).
+
+# Vibrator HAL (AIDL) built from source - vendor/qcom/opensource/vibrator
+# via twrp.dependencies. Replaces the dead 2023 prebuilt HIDL binary.
+PRODUCT_PACKAGES += \
+    vendor.qti.hardware.vibrator.service
 
 # Recovery-only build with prebuilt kernel: skip OTA kernel VINTF check
 PRODUCT_OTA_ENFORCE_VINTF_KERNEL_REQUIREMENTS := false

@@ -119,6 +119,22 @@ TARGET_INIT_VENDOR_LIB := //$(DEVICE_PATH):libinit_apollo
 TARGET_RECOVERY_DEVICE_MODULES := libinit_apollo
 TARGET_PLATFORM_DEVICE_BASE := /devices/soc/
 
+# Vibrator HAL into the recovery ramdisk (source-built via
+# vendor/qcom/opensource/vibrator). libexpat: the impl parses
+# HapticsPolicy.xml at runtime (same as reference 16.0 trees).
+TARGET_RECOVERY_DEVICE_MODULES += \
+    vendor.qti.hardware.vibrator.service \
+    vendor.qti.hardware.vibrator.impl \
+    vendor.qti.hardware.vibratorOL.impl \
+    vendor.qti.hardware.vibratorSel.impl \
+    libexpat
+RECOVERY_LIBRARY_SOURCE_FILES += \
+    $(TARGET_OUT_SHARED_LIBRARIES)/libexpat.so
+BOARD_RECOVERY_IMAGE_PREPARE += \
+    mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/vendor/bin/hw $(TARGET_RECOVERY_ROOT_OUT)/vendor/lib64/hw; \
+    cp -f $(TARGET_OUT_VENDOR_EXECUTABLES)/hw/vendor.qti.hardware.vibrator.service $(TARGET_RECOVERY_ROOT_OUT)/vendor/bin/hw/; \
+    cp -f $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/vendor.qti.hardware.vibrator*.so $(TARGET_RECOVERY_ROOT_OUT)/vendor/lib64/;
+
 # Recovery
 BOARD_HAS_LARGE_FILESYSTEM := true
 # NOTE: no surrounding quotes - soong_extra_config.mk emits this raw into
@@ -177,6 +193,7 @@ TWRP_INCLUDE_LOGCAT := true
 TARGET_USES_LOGD := true
 TW_NO_SCREEN_BLANK := true
 TW_HAS_EDL_MODE := false
+TW_SUPPORT_INPUT_AIDL_HAPTICS := true
 TW_BACKUP_EXCLUSIONS := /data/fonts,/data/adb/ap,/data/adb/ksu
 
 # Enable early preparation of /data/media for emulated storage
