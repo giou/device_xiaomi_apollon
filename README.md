@@ -20,18 +20,6 @@ Branch **`fox_16.0`** (default, only branch) — native Android 16 build
 
 ## Status (fox_16.0)
 
-Verified on device:
-
-- Boot, display (144 Hz), touch (instant, haptics working, vibration felt)
-- Data decrypt, all lockscreen types (PIN + pattern tested), surviving ROM
-  SPL bumps (2099 patch policy, proven across the 2026-10-01 bump)
-- Correct variant naming (`Mi_10T_Pro` from `pro` sku / `M2007J3SG`)
-- MTP, `adb sideload`, USB-OTG, boot backup/restore round-trip
-- `logcat` alive (1.8 MB captured; `task_profiles.json` stub fixed the
-  `logd` crash loop)
-- LineageOS OTA from the Updater (clean apply + boot, Magisk and OrangeFox
-  both survive)
-
 Not yet device-tested (needs v7 build `38107413049`, in progress):
 
 - "Flash current OrangeFox" button (repacker target fixed, untested)
