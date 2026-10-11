@@ -146,14 +146,16 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
 # (proven on v8: the staged HAL below was lost -> no vibrator service, every
 # touch stalled 5s waiting for IVibrator). Overwrites of already-listed paths
 # (avatar, libqtivibratoreffect.so) are safe. Register each staged file below
-# (grep-guarded, idempotent; glob mirrors the cp above so future HAL libs
-# are covered automatically).
+# (grep-guarded, idempotent). NOTE: never "cd" in this hook - every PREPARE
+# block runs in ONE shell, so a cd here breaks the relative paths of all
+# later blocks (this killed v10: the avatar check below it went missing).
+# Keep every path absolute except the registered names themselves.
 BOARD_RECOVERY_IMAGE_PREPARE += \
     RFL=$(TARGET_RECOVERY_ROOT_OUT)/ramdisk-files.txt; \
     if [ -f "$$RFL" ]; then \
-        cd $(TARGET_RECOVERY_ROOT_OUT) && for f in vendor/bin/hw/vendor.qti.hardware.vibrator.service vendor/lib64/*vibrator*.so; do \
-            [ -e "$$f" ] || continue; \
-            grep -qxF "$$f" ramdisk-files.txt || echo "$$f" >> ramdisk-files.txt; \
+        for f in vendor/bin/hw/vendor.qti.hardware.vibrator.service vendor/lib64/android.hardware.vibrator-V2-ndk.so vendor/lib64/libqtivibratoreffectoffload.so vendor/lib64/vendor.qti.hardware.vibrator.impl.so vendor/lib64/vendor.qti.hardware.vibratorOL.impl.so vendor/lib64/vendor.qti.hardware.vibratorSel.impl.so; do \
+            [ -e "$(TARGET_RECOVERY_ROOT_OUT)/$$f" ] || continue; \
+            grep -qxF "$$f" "$$RFL" || echo "$$f" >> "$$RFL"; \
         done; \
     else \
         echo "WARNING: ramdisk-files.txt not found - repacked images will lack the staged vibrator HAL"; \
