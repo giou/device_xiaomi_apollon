@@ -12,16 +12,10 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
       Unbuilt — needs a device test (fastboot boot → button → verify
       recovery partition updated, system still boots). Do NOT press the
       button on older builds.
-- [ ] **logd crash loop (no logcat).** Chain: A16 `system/logging/logd`
-      `DropPrivs()` aborts when `set_sched_policy(SP_BACKGROUND)` fails (no
-      `/etc/task_profiles.json` in recovery), then every restart aborts
-      re-setting the already-set `ro.logd.kernel` (`main.cpp:216-218`,
-      `SIGABRT`). Attempted fix (unbuilt): minimal `task_profiles.json`
-      stub with empty `SCHED_SP_BACKGROUND` actions in ramdisk `/etc`.
-      If logd still dies, the fallback is a source patch to `system/logging`
-      (tolerate both failures) — needs manifest-override support in the
-      builder (it can only *add* repos today) plus a fork to carry it.
-      Impact: none on recovery function; only `logcat` unavailable.
+- [x] **logd crash loop (no logcat).** Fixed with the minimal
+      `task_profiles.json` stub (empty `SCHED_SP_BACKGROUND` actions):
+      logd survives `DropPrivs()`, 1.8 MB of live logcat captured on the
+      Oct 10 ROM. Source-patch fallback never needed.
 
 ## Pending verification (device tests)
 
