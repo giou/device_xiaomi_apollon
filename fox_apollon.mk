@@ -28,6 +28,14 @@ OF_NO_TREBLE_COMPATIBILITY_CHECK := 1
 OF_MAINTAINER := giou
 FOX_MAINTAINER_PATCH_VERSION := 1
 
+# Fox Addons payload (installer zip only; the .img carries none of this):
+# drop AromaFM (32-bit binary from 2012, segfaults on A16) and bundle
+# Magisk 31 instead of upstream's 30.7. "?=" keeps this overridable from
+# the environment - the builder passes an absolute path; local builds
+# fall back to the tree-relative copy fetched alongside the tree.
+FOX_DELETE_AROMAFM := 1
+FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
+
 OF_ENABLE_LPTOOLS := 1
 OF_QUICK_BACKUP_LIST := /boot;/data;
 
