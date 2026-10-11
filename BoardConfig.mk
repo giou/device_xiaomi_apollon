@@ -140,6 +140,24 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
         echo "ERROR: vibrator HAL not built - was vendor/qcom/opensource/vibrator synced via twrp.dependencies?"; \
         exit 1; \
     fi;
+# The "Flash current OrangeFox" repacker rebuilds the ramdisk from the live
+# root fs using ramdisk-files.txt - which is generated BEFORE this hook runs.
+# Any NEW path staged here is therefore silently dropped from repacked images
+# (proven on v8: the staged HAL below was lost -> no vibrator service, every
+# touch stalled 5s waiting for IVibrator). Overwrites of already-listed paths
+# (avatar, libqtivibratoreffect.so) are safe. Register each staged file below
+# (grep-guarded, idempotent; glob mirrors the cp above so future HAL libs
+# are covered automatically).
+BOARD_RECOVERY_IMAGE_PREPARE += \
+    RFL=$(TARGET_RECOVERY_ROOT_OUT)/ramdisk-files.txt; \
+    if [ -f "$$RFL" ]; then \
+        cd $(TARGET_RECOVERY_ROOT_OUT) && for f in vendor/bin/hw/vendor.qti.hardware.vibrator.service vendor/lib64/*vibrator*.so; do \
+            [ -e "$$f" ] || continue; \
+            grep -qxF "$$f" ramdisk-files.txt || echo "$$f" >> ramdisk-files.txt; \
+        done; \
+    else \
+        echo "WARNING: ramdisk-files.txt not found - repacked images will lack the staged vibrator HAL"; \
+    fi;
 # Maintainer avatar for the About page (overrides theme default
 # twres/images/Default/About/maintainer.png, shown next to OF_MAINTAINER)
 BOARD_RECOVERY_IMAGE_PREPARE += \
