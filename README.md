@@ -27,10 +27,12 @@ Verified on device:
   SPL bumps (2099 patch policy, proven across the 2026-10-01 bump)
 - Correct variant naming (`Mi_10T_Pro` from `pro` sku / `M2007J3SG`)
 - MTP, `adb sideload`, USB-OTG, boot backup/restore round-trip
+- `logcat` alive (1.8 MB captured; `task_profiles.json` stub fixed the
+  `logd` crash loop)
 - LineageOS OTA from the Updater (clean apply + boot, Magisk and OrangeFox
   both survive)
 
-Not yet device-tested (needs a build newer than v6):
+Not yet device-tested (needs v7 build `38107413049`, in progress):
 
 - "Flash current OrangeFox" button (repacker target fixed, untested)
 
