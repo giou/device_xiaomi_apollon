@@ -26,7 +26,8 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 - [x] All lockscreen credential types (PIN + pattern device-tested;
       password shares the gatekeeper path).
 - [x] `adb sideload` (Magisk APK over sideload, transfer + install clean).
-- [ ] USB-OTG mount sanity.
+- [x] USB-OTG (second stick mounts rw, write OK; first stick was dying
+      hardware — SanDisk U3 ISO partition, then I/O errors).
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
 - [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
       auto-rebooted to system; Magisk 31.0 survived with Ramdisk Yes;
