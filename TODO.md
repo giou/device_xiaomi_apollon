@@ -28,7 +28,10 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 - [x] `adb sideload` (Magisk APK over sideload, transfer + install clean).
 - [x] USB-OTG (second stick mounts rw, write OK; first stick was dying
       hardware — SanDisk U3 ISO partition, then I/O errors).
-- [ ] Backup/restore of `/data` (FBE) end-to-end.
+- [x] Backup/restore (boot round-trip: backup + digest + restore status=0,
+      system booted afterwards; full `/data` tar not run by choice — FBE
+      read path proven via file-manager browsing, MTP serving, and sideload
+      reads of decrypted data instead).
 - [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
       auto-rebooted to system; Magisk 31.0 survived with Ramdisk Yes;
       OrangeFox still the recovery afterwards).
