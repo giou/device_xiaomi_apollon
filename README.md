@@ -15,26 +15,24 @@ working data decryption (FBEv1 + metadata wrappedkey).
 | OTA assert | `apollon,apollo,apollopro` |
 | Kernel | 4.19.325 (LineageOS `android_kernel_xiaomi_sm8250:lineage-23.2` boot image) |
 
-Branches:
-
-- **`fox_16.0`** (default, only branch) — native Android 16 build (`fox_16.0`
-  manifest, SDK 36, no version spoofs). The `fox_12.1` diagnostic baseline was
-  removed: proven unable to unwrap LOS 23 metadata (A16 `vold` vs 12.1 crypto
-  stack), never to be used again.
+Branch **`fox_16.0`** (default, only branch) — native Android 16 build
+(`fox_16.0` manifest, SDK 36).
 
 ## Status (fox_16.0)
 
 Verified on device:
 
 - Boot, display (144 Hz), touch (instant, haptics working, vibration felt)
-- Data decrypt, including PIN on a locked install (109 GB visible)
+- Data decrypt, all lockscreen types (PIN + pattern tested), surviving ROM
+  SPL bumps (2099 patch policy, proven across the 2026-10-01 bump)
 - Correct variant naming (`Mi_10T_Pro` from `pro` sku / `M2007J3SG`)
-- MTP, LineageOS OTA from the Updater (clean apply + boot, Magisk survived)
+- MTP, `adb sideload`, USB-OTG, boot backup/restore round-trip
+- LineageOS OTA from the Updater (clean apply + boot, Magisk and OrangeFox
+  both survive)
 
-Pending device tests — see [TODO.md](TODO.md):
+Not yet device-tested (needs a build newer than v6):
 
-- Password/pattern decrypt (PIN done; same gatekeeper path, low risk)
-- FBE backup/restore end-to-end, `adb sideload`, USB-OTG
+- "Flash current OrangeFox" button (repacker target fixed, untested)
 
 ## Build
 
@@ -70,13 +68,15 @@ manifest branch.)
 
 - FBEv1 (`fileencryption=ice`, `TW_USE_FSCRYPT_POLICY := 1`) matches
   LineageOS. FBEv2 trees are for MIUI/HyperOS and will *not* decrypt LOS.
+- Security patch is pinned to 2099-12-31 (SKKK convention): QTI unwrapping
+  is version-sensitive, so an honest SPL breaks decrypt on every monthly
+  OTA. Far-future stamp survives bumps; refresh kernel/blobs per nightly.
 - `vendorsetup.sh` is mondrian-style with an `FDEVICE` guard — the `fox_16.0`
   manifest sources every device tree's `vendorsetup.sh` at lunch.
 - `TARGET_RECOVERY_PIXEL_FORMAT` must stay **unquoted**: the 16.0 soong
   config emitter writes it raw into `product_config.json`.
 - The vibrator HAL is source-built; `BOARD_RECOVERY_IMAGE_PREPARE` stages it
   into the ramdisk and fails loudly if it wasn't built.
-- [TODO.md](TODO.md) is the finish list — keep it current.
 
 ## Credits
 
