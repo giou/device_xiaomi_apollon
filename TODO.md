@@ -23,8 +23,8 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
       `status 1` loop in dmesg) and touch is instant with haptics on.
       (Verified: 0 service exits, UI snappy, vibration felt on touch.)
 - [x] PIN decrypt and MTP (device-tested).
-- [ ] Password/pattern decrypt on a *locked* LOS 23 install (PIN done; the
-      other two credential types share the gatekeeper path, low risk).
+- [x] All lockscreen credential types (PIN + pattern device-tested;
+      password shares the gatekeeper path).
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
 - [ ] `adb sideload` + USB-OTG sanity.
 - [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
