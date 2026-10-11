@@ -5,7 +5,6 @@ cc_library_static {
     ],
     cflags: [
         "-Wall",
-//      "-DBUILD_FOR_CMI",
     ],
     static_libs: [
         "libbase",

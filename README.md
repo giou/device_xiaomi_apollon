@@ -57,6 +57,9 @@ manifest branch.)
   OTA. Far-future stamp survives bumps; refresh kernel/blobs per nightly.
 - `vendorsetup.sh` is mondrian-style with an `FDEVICE` guard — the `fox_16.0`
   manifest sources every device tree's `vendorsetup.sh` at lunch.
+- "Flash current OrangeFox" persists the *running* version (partition
+  kernel + live ramdisk); moving versions needs the full zip, which
+  carries a matched kernel+ramdisk pair.
 - `TARGET_RECOVERY_PIXEL_FORMAT` must stay **unquoted**: the 16.0 soong
   config emitter writes it raw into `product_config.json`.
 - The vibrator HAL is source-built; `BOARD_RECOVERY_IMAGE_PREPARE` stages it

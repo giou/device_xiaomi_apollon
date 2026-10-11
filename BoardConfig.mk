@@ -214,7 +214,7 @@ TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 			     
 # TWRP specific build flags
 TW_THEME := portrait_hdpi
-TW_DEVICE_VERSION := apollon-LOS23-16.0-v1
+TW_DEVICE_VERSION := apollon-LOS23-16.0-v2
 RECOVERY_SDCARD_ON_DATA := true
 TARGET_RECOVERY_QCOM_RTC_FIX := true
 # Legacy battery services (reference 16.0 trees set this; apollon PMIC predates AIDL health)
