@@ -25,8 +25,9 @@ Ultra) on official LineageOS. Items below are deferred, not dropped.
 - [x] PIN decrypt and MTP (device-tested).
 - [x] All lockscreen credential types (PIN + pattern device-tested;
       password shares the gatekeeper path).
+- [x] `adb sideload` (Magisk APK over sideload, transfer + install clean).
+- [ ] USB-OTG mount sanity.
 - [ ] Backup/restore of `/data` (FBE) end-to-end.
-- [ ] `adb sideload` + USB-OTG sanity.
 - [x] LineageOS OTA update from the Updater (Oct 10 build: applied cleanly,
       auto-rebooted to system; Magisk 31.0 survived with Ramdisk Yes;
       OrangeFox still the recovery afterwards).
