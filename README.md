@@ -20,9 +20,11 @@ Branch **`fox_16.0`** (default, only branch) — native Android 16 build
 
 ## Status (fox_16.0)
 
-Not yet device-tested (needs v7 build `38107413049`, in progress):
+Not yet device-tested (fix staged, needs v9 build):
 
-- "Flash current OrangeFox" button (repacker target fixed, untested)
+- "Flash current OrangeFox" button (v8 reflashed but dropped PREPARE-staged
+  files: repacker rebuilds the ramdisk from `ramdisk-files.txt`, which is
+  generated before the staging hook runs)
 
 ## Build
 
