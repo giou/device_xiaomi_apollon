@@ -39,6 +39,11 @@ FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
 OF_ENABLE_LPTOOLS := 1
 OF_QUICK_BACKUP_LIST := /boot;/data;
 
+# apollon runs LOS only: no MIUI props exist to find, so skip the
+# MIUI-specific checks outright (upstream claims ~0.5s off boot;
+# actual delta TBD from boot timestamps, harmless either way)
+OF_NO_ADDITIONAL_MIUI_PROPS_CHECK := 1
+
 # apollon has no hardware navigation buttons: forbid hiding the
 # on-screen navbar (OF_ALLOW_DISABLE_NAVBAR defaults to 1, which would
 # strand users with no way back)
