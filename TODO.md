@@ -4,7 +4,7 @@
 
 - [x] LOS 24 PIN decrypt
 - [x] Vibration (24.0 HAL + old effect prebuilt held up fine)
-- [ ] Built-in Magisk 31 addon install
+- [x] Built-in Magisk 31 addon install (tested on v17; mechanism identical on v18)
 - [x] MTP single-entry
 - [ ] OTG on old iteration code (MSR-first disk; single-partition regression; unformatted-drive error)
 - [ ] LOS zip flash with patching skipped
