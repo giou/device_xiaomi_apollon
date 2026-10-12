@@ -66,6 +66,10 @@ manifest branch.)
   carries a matched kernel+ramdisk pair.
 - `TARGET_RECOVERY_PIXEL_FORMAT` must stay **unquoted**: the 16.0 soong
   config emitter writes it raw into `product_config.json`.
+- `ds28e16: Failed to reset ds28e16!` dmesg spam is the Maxim 1-Wire
+  battery authenticator not answering — expected with a replacement
+  (non-original) battery pack, which lacks the chip. Harmless: fuel
+  gauge, charging, and decrypt are independent of it. Do not "fix".
 - The vibrator HAL is source-built; `BOARD_RECOVERY_IMAGE_PREPARE` stages it
   into the ramdisk and fails loudly if it wasn't built.
 
