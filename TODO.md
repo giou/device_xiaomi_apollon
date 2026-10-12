@@ -24,8 +24,8 @@
 - [ ] Sideload without treble-compat check (next LOS nightly)
 - [x] Quick backup: empty default → set once in Settings → persists across reboot
 - [ ] Super backup (dd) + ROM flash without lptools
-- [ ] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
-- [ ] Reflash-button press (repack lossless with effect-lib registration)
+- [x] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
+- [x] Reflash-button press (repack lossless with effect-lib registration)
 - [x] Offline charging — struck: the flag never lived in recovery's path
   (offline charging runs from the ROM's boot image), so there is nothing
   to verify. Drop stands.
