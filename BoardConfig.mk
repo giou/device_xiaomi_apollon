@@ -169,15 +169,6 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
     else \
         echo "WARNING: ramdisk-files.txt not found - repacked images will lack the staged vibrator HAL"; \
     fi;
-# Maintainer avatar for the About page (overrides theme default
-# twres/images/Default/About/maintainer.png, shown next to OF_MAINTAINER)
-BOARD_RECOVERY_IMAGE_PREPARE += \
-    if [ -f $(DEVICE_PATH)/avatar/maintainer.png ]; then \
-        cp -f $(DEVICE_PATH)/avatar/maintainer.png $(TARGET_RECOVERY_ROOT_OUT)/twres/images/Default/About/maintainer.png; \
-    else \
-        echo "ERROR: $(DEVICE_PATH)/avatar/maintainer.png missing"; \
-        exit 1; \
-    fi;
 
 # Recovery
 BOARD_HAS_LARGE_FILESYSTEM := true
@@ -240,15 +231,12 @@ TARGET_RECOVERY_QCOM_RTC_FIX := true
 # health-hal-2-1 runs in our recovery so the HAL path may work on apollon.
 # TW_USE_LEGACY_BATTERY_SERVICES := true
 TW_EXCLUDE_DEFAULT_USB_INIT := true
-TW_EXTRA_LANGUAGES := true
 TW_INCLUDE_NTFS_3G := true
 TW_NO_EXFAT_FUSE := true
 TW_USE_TOOLBOX := true
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 TW_MAX_BRIGHTNESS := 2047
 TW_DEFAULT_BRIGHTNESS := 1433
-TW_STATUS_ICONS_ALIGN := center
-TW_CUSTOM_CPU_POS := 172
 TWRP_INCLUDE_LOGCAT := true
 TARGET_USES_LOGD := true
 TW_NO_SCREEN_BLANK := true
