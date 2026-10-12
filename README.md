@@ -1,7 +1,8 @@
 # OrangeFox device tree for Xiaomi apollon (Mi 10T / Mi 10T Pro / Redmi K30S Ultra)
 
-Recovery device tree targeting **official LineageOS 23 (Android 16)** with
-working data decryption (FBEv1 + metadata wrappedkey).
+Recovery device tree targeting **official LineageOS 24 (Android 17)** with
+working data decryption (FBEv1 + metadata wrappedkey). Still works on
+LineageOS 23.2 (same FBEv1 policy; the OS-version pin satisfies both).
 
 | Spec | |
 | :--- | :--- |
@@ -13,7 +14,7 @@ working data decryption (FBEv1 + metadata wrappedkey).
 | Display | 6.67" 1080x2400 IPS, 144 Hz |
 | Battery | 5000 mAh |
 | OTA assert | `apollon,apollo,apollopro` |
-| Kernel | 4.19.325 (LineageOS `android_kernel_xiaomi_sm8250:lineage-23.2` boot image) |
+| Kernel | 4.19.325 (LineageOS `android_kernel_xiaomi_sm8250:lineage-24.0` boot image) |
 
 Branch **`fox_16.0`** (default, only branch) — native Android 16 build
 (`fox_16.0` manifest, SDK 36).
@@ -55,6 +56,9 @@ manifest branch.)
 - Security patch is pinned to 2099-12-31 (SKKK convention): QTI unwrapping
   is version-sensitive, so an honest SPL breaks decrypt on every monthly
   OTA. Far-future stamp survives bumps; refresh kernel/blobs per nightly.
+- OS version is pinned to 99 for the same reason: LOS re-binds key blobs
+  to the OS version on boot, so a recovery reporting older (16 vs 17)
+  fails metadata unwrap. 99 satisfies both LOS 23 and 24.
 - `vendorsetup.sh` is mondrian-style with an `FDEVICE` guard — the `fox_16.0`
   manifest sources every device tree's `vendorsetup.sh` at lunch.
 - "Flash current OrangeFox" persists the *running* version (partition
