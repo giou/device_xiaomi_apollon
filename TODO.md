@@ -2,15 +2,15 @@
 
 ## v18 build `38210824357` (vanilla + kernel refresh + vibrator 24.0)
 
-- [ ] LOS 24 PIN decrypt
-- [ ] Vibration (caveat: 24.0 HAL + *old* effect prebuilt; source-build rides next)
+- [x] LOS 24 PIN decrypt
+- [x] Vibration (24.0 HAL + old effect prebuilt held up fine)
 - [ ] Built-in Magisk 31 addon install
-- [ ] MTP single-entry
+- [x] MTP single-entry
 - [ ] OTG on old iteration code (MSR-first disk; single-partition regression; unformatted-drive error)
 - [ ] LOS zip flash with patching skipped
 - [ ] OTA row gone, settings stable
 - [ ] Boot-time delta vs v17 (MIUI-props skip measurement)
-- [ ] Navbar lock (no hide option in settings)
+- [x] Navbar lock (no hide option in settings)
 
 ## Fixes build `38217828738` (OTG redesign + purges + battery test)
 
