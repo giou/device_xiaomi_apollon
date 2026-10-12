@@ -39,6 +39,16 @@ FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
 OF_ENABLE_LPTOOLS := 1
 OF_QUICK_BACKUP_LIST := /boot;/data;
 
+# apollon has no hardware navigation buttons: forbid hiding the
+# on-screen navbar (OF_ALLOW_DISABLE_NAVBAR defaults to 1, which would
+# strand users with no way back)
+OF_ALLOW_DISABLE_NAVBAR := 0
+
+# Keymaster 4.0 is proven in the decrypt logs ("Using keymaster version
+# '4.x'"); pin it as the default so a failed auto-detect can't silently
+# change it. A ROM using another version still overrides this.
+OF_DEFAULT_KEYMASTER_VERSION := 4.0
+
 # avb 2.0
 OF_PATCH_AVB20 := 1
 
