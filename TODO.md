@@ -25,7 +25,9 @@
 - [ ] Super backup (dd) + ROM flash without lptools
 - [ ] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
 - [ ] Reflash-button press (repack lossless with effect-lib registration)
-- [ ] Offline charging (cable while powered off)
+- [x] Offline charging — struck: the flag never lived in recovery's path
+  (offline charging runs from the ROM's boot image), so there is nothing
+  to verify. Drop stands.
 - [ ] English-only UI, default icon layout, touch sanity
 - [ ] Green-led setting hidden again
 
