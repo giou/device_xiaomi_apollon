@@ -8,7 +8,7 @@
 - [x] MTP single-entry
 - [ ] OTG on old iteration code (MSR-first disk; single-partition regression; unformatted-drive error)
 - [ ] LOS zip flash with patching skipped
-- [ ] OTA row gone, settings stable
+- [x] OTA row gone, settings stable
 - [ ] Boot-time delta vs v17 (MIUI-props skip measurement)
 - [x] Navbar lock (no hide option in settings)
 
