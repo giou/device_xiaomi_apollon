@@ -224,6 +224,12 @@ BUILD_BROKEN_USES_NETWORK := true
 TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_RESETPROP := true
 TW_INCLUDE_LIBRESETPROP := true
+# lp tools: excluded, not merely un-enabled. The INCLUDE flags are no-ops
+# (dynamic-partition builds pull lpdump/lptools unless EXCLUDED -
+# verified: they built despite the dropped INCLUDEs). Zero runtime
+# invocations in recovery source or vendor scripts; super backup uses dd.
+TW_EXCLUDE_LPDUMP := true
+TW_EXCLUDE_LPTOOLS := true
 TW_HAS_MTP := true
 TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 			     
