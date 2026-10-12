@@ -23,9 +23,12 @@
 #  OF_KEEP_DM_VERITY [always-on], OF_SUPPORT_ALL_BLOCK_OTA_UPDATES /
 #  OF_FIX_OTA_UPDATE_MANUAL_FLASH_ERROR / OF_DISABLE_MIUI_OTA_BY_DEFAULT /
 #  OF_NO_MIUI_PATCH_WARNING [legacy], OF_IGNORE_LOGICAL_MOUNT_ERRORS [obsolete])
-# (minimal-delta pass: OF_USE_GREEN_LED, OF_NO_TREBLE_COMPATIBILITY_CHECK,
+# (minimal-delta pass: OF_NO_TREBLE_COMPATIBILITY_CHECK,
 #  OF_QUICK_BACKUP_LIST, OF_UNBIND_SDCARD_F2FS, OF_DEFAULT_KEYMASTER_VERSION
 #  all dropped - defaults or untriggered insurance; re-add on evidence)
+# apollon has no notification LED (/sys/class/leds/green doesn't exist -
+# confirmed in dmesg); hide the inert setting
+OF_USE_GREEN_LED := 0
 OF_MAINTAINER := giou
 FOX_MAINTAINER_PATCH_VERSION := 1
 
