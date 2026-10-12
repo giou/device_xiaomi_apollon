@@ -19,10 +19,10 @@
 - [ ] OTG redesign: manual checkbox iterates to `sdg2`
 - [ ] OTG redesign: per-candidate log lines visible on failure
 - [ ] OTG redesign: MTP survives a failed attempt; unplug/replug re-triggers
-- [ ] Vibration again (source-built effect lib)
-- [ ] Battery % vs actual charge (health-HAL path)
+- [x] Vibration again (source-built effect lib)
+- [x] Battery % vs actual charge (health-HAL path)
 - [ ] Sideload without treble-compat check (next LOS nightly)
-- [ ] Quick backup: empty default → set once in Settings → persists across reboot
+- [x] Quick backup: empty default → set once in Settings → persists across reboot
 - [ ] Super backup (dd) + ROM flash without lptools
 - [ ] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
 - [ ] Reflash-button press (repack lossless with effect-lib registration)
