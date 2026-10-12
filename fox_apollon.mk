@@ -49,6 +49,13 @@ OF_NO_ADDITIONAL_MIUI_PROPS_CHECK := 1
 # strand users with no way back)
 OF_ALLOW_DISABLE_NAVBAR := 0
 
+# EXPERIMENTAL TEST VARIANT (not for release): strip MIUI-specific
+# features and the OTA menu, skip install-time patching. Proves whether
+# the LOS-only path is identical without them. Doubles as the vote on
+# the pending ON-test: this variant cannot run it (no UI, defaults off).
+FOX_VANILLA_BUILD := 1
+OF_DISABLE_MIUI_SPECIFIC_FEATURES := 1
+
 # Keymaster 4.0 is proven in the decrypt logs ("Using keymaster version
 # '4.x'"); pin it as the default so a failed auto-detect can't silently
 # change it. A ROM using another version still overrides this.
