@@ -182,7 +182,15 @@ BOARD_USES_METADATA_PARTITION := true
 ifdef DECRYPT_PLATFORM_VERSION
 PLATFORM_VERSION := $(DECRYPT_PLATFORM_VERSION)
 else
-PLATFORM_VERSION := 16
+# NOTE: OS version pinned to 99 (same SKKK-class hack as the SPL pin
+# below), NOT the manifest's 16. QTI Keymaster binds unwrapping to BOTH
+# tags: a recovery reporting an older OS version than the installed ROM
+# (16 vs LOS 24's 17 - keys are re-bound on first boot after an OTA)
+# fails metadata unwrap exactly like the old SPL mismatch did. Proven
+# 2026-10-12: v12 (16) cannot unwrap LOS 24 metadata; the SPL pin's
+# success already proves the TA reads recovery props, so this pin rides
+# the same channel. Cosmetic side effect: recovery reports release "99".
+PLATFORM_VERSION := 99
 endif
 PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
 # NOTE: patch pinned to 2099-12-31 (TWRP/SKKK convention), NOT the ROM's SPL.
