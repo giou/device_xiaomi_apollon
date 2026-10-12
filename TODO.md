@@ -1,0 +1,38 @@
+# apollon test backlog (current only — move to done, don't accumulate)
+
+## v18 build `38210824357` (vanilla + kernel refresh + vibrator 24.0)
+
+- [ ] LOS 24 PIN decrypt
+- [ ] Vibration (caveat: 24.0 HAL + *old* effect prebuilt; source-build rides next)
+- [ ] Built-in Magisk 31 addon install
+- [ ] MTP single-entry
+- [ ] OTG on old iteration code (MSR-first disk; single-partition regression; unformatted-drive error)
+- [ ] LOS zip flash with patching skipped
+- [ ] OTA row gone, settings stable
+- [ ] Boot-time delta vs v17 (MIUI-props skip measurement)
+- [ ] Navbar lock (no hide option in settings)
+
+## Fixes build `38217828738` (OTG redesign + purges + battery test)
+
+- [ ] OTG redesign: plug → auto-tick ≤10s untouched
+- [ ] OTG redesign: manual checkbox iterates to `sdg2`
+- [ ] OTG redesign: per-candidate log lines visible on failure
+- [ ] OTG redesign: MTP survives a failed attempt; unplug/replug re-triggers
+- [ ] Vibration again (source-built effect lib)
+- [ ] Battery % vs actual charge (health-HAL path)
+- [ ] Sideload without treble-compat check (next LOS nightly)
+- [ ] Quick backup: empty default → set once in Settings → persists across reboot
+- [ ] Super backup (dd) + ROM flash without lptools
+- [ ] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
+- [ ] Reflash-button press (repack lossless with effect-lib registration)
+- [ ] Offline charging (cable while powered off)
+- [ ] English-only UI, default icon layout, touch sanity
+- [ ] Green-led setting hidden again
+
+## Retired
+
+- Updater-OTA ON-test — vanilla removes its UI by design.
+
+## Proven, don't retest
+
+- v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
