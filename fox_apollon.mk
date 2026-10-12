@@ -23,8 +23,9 @@
 #  OF_KEEP_DM_VERITY [always-on], OF_SUPPORT_ALL_BLOCK_OTA_UPDATES /
 #  OF_FIX_OTA_UPDATE_MANUAL_FLASH_ERROR / OF_DISABLE_MIUI_OTA_BY_DEFAULT /
 #  OF_NO_MIUI_PATCH_WARNING [legacy], OF_IGNORE_LOGICAL_MOUNT_ERRORS [obsolete])
-OF_USE_GREEN_LED := 0
-OF_NO_TREBLE_COMPATIBILITY_CHECK := 1
+# (minimal-delta pass: OF_USE_GREEN_LED, OF_NO_TREBLE_COMPATIBILITY_CHECK,
+#  OF_QUICK_BACKUP_LIST, OF_UNBIND_SDCARD_F2FS, OF_DEFAULT_KEYMASTER_VERSION
+#  all dropped - defaults or untriggered insurance; re-add on evidence)
 OF_MAINTAINER := giou
 FOX_MAINTAINER_PATCH_VERSION := 1
 
@@ -37,7 +38,6 @@ FOX_DELETE_AROMAFM := 1
 FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
 
 OF_ENABLE_LPTOOLS := 1
-OF_QUICK_BACKUP_LIST := /boot;/data;
 
 # apollon runs LOS only: no MIUI props exist to find, so skip the
 # MIUI-specific checks outright (upstream claims ~0.5s off boot;
@@ -56,16 +56,8 @@ OF_ALLOW_DISABLE_NAVBAR := 0
 FOX_VANILLA_BUILD := 1
 OF_DISABLE_MIUI_SPECIFIC_FEATURES := 1
 
-# Keymaster 4.0 is proven in the decrypt logs ("Using keymaster version
-# '4.x'"); pin it as the default so a failed auto-detect can't silently
-# change it. A ROM using another version still overrides this.
-OF_DEFAULT_KEYMASTER_VERSION := 4.0
-
 # avb 2.0
 OF_PATCH_AVB20 := 1
-
-# try to prevent potential data format errors
-OF_UNBIND_SDCARD_F2FS := 1
 
 # maximum permissible splash image size (in kilobytes); do *NOT* increase!
 OF_SPLASH_MAX_SIZE := 130
