@@ -40,7 +40,9 @@ FOX_MAINTAINER_PATCH_VERSION := 1
 FOX_DELETE_AROMAFM := 1
 FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
 
-OF_ENABLE_LPTOOLS := 1
+# (minimal-delta: lptools/lpdump dropped - zero runtime invocations in
+# recovery source or vendor scripts; super backup uses dd, flashing uses
+# the updater. Re-add if a flow ever needs logical-partition tools.)
 
 # apollon runs LOS only: no MIUI props exist to find, so skip the
 # MIUI-specific checks outright (upstream claims ~0.5s off boot;
