@@ -7,7 +7,11 @@
 #
 # Shell-only vars (per OrangeFox docs these MUST be set here, not in .mk):
 # FOX_USE_BASH_SHELL, FOX_ASH_IS_BASH, FOX_USE_TAR_BINARY,
-# FOX_USE_SED_BINARY, FOX_USE_XZ_UTILS, FOX_USE_NANO_EDITOR, FOX_USE_ZIP_BINARY.
+# FOX_USE_SED_BINARY, FOX_USE_XZ_UTILS, FOX_USE_NANO_EDITOR.
+# (FOX_USE_ZIP_BINARY removed: marked [OBSOLETE] since fox_10.0 in
+# upstream's own orangefox_build_vars.txt; current vendor copies the
+# prebuilt zip unless FOX_SKIP_ZIP_BINARY/FOX_REMOVE_ZIP_BINARY is set.
+# The dead export changed nothing, so removal is behavior-identical.)
 # Everything else lives in fox_apollon.mk / BoardConfig.mk.
 #
 
@@ -34,7 +38,6 @@ if [ "$1" = "$FDEVICE" -o "$FOX_BUILD_DEVICE" = "$FDEVICE" ]; then
 	export FOX_USE_SED_BINARY=1
 	export FOX_USE_XZ_UTILS=1
 	export FOX_USE_NANO_EDITOR=1
-	export FOX_USE_ZIP_BINARY=1
 	export OF_USE_GREEN_LED=0
 
 	# log the build vars for debugging
