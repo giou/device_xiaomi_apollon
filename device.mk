@@ -58,9 +58,5 @@ PRODUCT_EXTRA_RECOVERY_KEYS += \
 
 PRODUCT_PROPERTY_OVERRIDES += ro.twrp.device.name=apollon
 
-ifneq ($(TW_SKKK_VER_CODE),)
-PRODUCT_PROPERTY_OVERRIDES += ro.twrp.version.skkk.code=$(TW_SKKK_VER_CODE)
-endif
-
 TWRP_REQUIRED_MODULES += apollon_firmware_prebuilt \
     erofsfuse.recovery

@@ -117,16 +117,25 @@ TARGET_COPY_OUT_VENDOR := vendor
 #Init
 TARGET_INIT_VENDOR_LIB := //$(DEVICE_PATH):libinit_apollo
 TARGET_RECOVERY_DEVICE_MODULES := libinit_apollo
-TARGET_PLATFORM_DEVICE_BASE := /devices/soc/
 
 # Vibrator HAL into the recovery ramdisk (source-built via
 # vendor/qcom/opensource/vibrator). libexpat: the impl parses
 # HapticsPolicy.xml at runtime (same as reference 16.0 trees).
+# libqtivibratoreffect (non-offload) is source-built too, not taken from
+# the old recovery/root prebuilt: 24.0's OL.impl links it (effect_lib
+# default) and the prebuilt's era is unverified. Deleted prebuilts that
+# nothing loads (proven: no NEEDED refs in any shipped binary, and the
+# LOS 24 ROM itself ships neither): vibrator.default.so (legacy HIDL),
+# libsoc_helper.so (dep dropped in 24.0), excluded-input-devices.xml
+# (framework-only; inputflinger doesn't run in recovery), and the 2MB
+# system/bin/busybox (zero refs anywhere; Magisk uses its own bundled
+# busybox; vendor actively deletes /sbin/busybox unless requested).
 TARGET_RECOVERY_DEVICE_MODULES += \
     vendor.qti.hardware.vibrator.service \
     vendor.qti.hardware.vibrator.impl \
     vendor.qti.hardware.vibratorOL.impl \
     vendor.qti.hardware.vibratorSel.impl \
+    libqtivibratoreffect \
     libqtivibratoreffectoffload \
     libexpat
 RECOVERY_LIBRARY_SOURCE_FILES += \
@@ -153,7 +162,7 @@ BOARD_RECOVERY_IMAGE_PREPARE += \
 BOARD_RECOVERY_IMAGE_PREPARE += \
     RFL=$(TARGET_RECOVERY_ROOT_OUT)/ramdisk-files.txt; \
     if [ -f "$$RFL" ]; then \
-        for f in vendor/bin/hw/vendor.qti.hardware.vibrator.service vendor/lib64/android.hardware.vibrator-V2-ndk.so vendor/lib64/libqtivibratoreffectoffload.so vendor/lib64/vendor.qti.hardware.vibrator.impl.so vendor/lib64/vendor.qti.hardware.vibratorOL.impl.so vendor/lib64/vendor.qti.hardware.vibratorSel.impl.so; do \
+        for f in vendor/bin/hw/vendor.qti.hardware.vibrator.service vendor/lib64/android.hardware.vibrator-V2-ndk.so vendor/lib64/libqtivibratoreffect.so vendor/lib64/libqtivibratoreffectoffload.so vendor/lib64/vendor.qti.hardware.vibrator.impl.so vendor/lib64/vendor.qti.hardware.vibratorOL.impl.so vendor/lib64/vendor.qti.hardware.vibratorSel.impl.so; do \
             [ -e "$(TARGET_RECOVERY_ROOT_OUT)/$$f" ] || continue; \
             grep -qxF "$$f" "$$RFL" || echo "$$f" >> "$$RFL"; \
         done; \
@@ -228,12 +237,10 @@ TARGET_RECOVERY_QCOM_RTC_FIX := true
 # Legacy battery services (reference 16.0 trees set this; apollon PMIC predates AIDL health)
 TW_USE_LEGACY_BATTERY_SERVICES := true
 TW_EXCLUDE_DEFAULT_USB_INIT := true
-TW_EXCLUDE_ENCRYPTED_BACKUPS := false
 TW_EXTRA_LANGUAGES := true
 TW_INCLUDE_NTFS_3G := true
 TW_NO_EXFAT_FUSE := true
 TW_USE_TOOLBOX := true
-TW_INPUT_BLACKLIST := "hbtp_vm"
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 TW_MAX_BRIGHTNESS := 2047
 TW_DEFAULT_BRIGHTNESS := 1433
@@ -242,7 +249,6 @@ TW_CUSTOM_CPU_POS := 172
 TWRP_INCLUDE_LOGCAT := true
 TARGET_USES_LOGD := true
 TW_NO_SCREEN_BLANK := true
-TW_HAS_EDL_MODE := false
 TW_SUPPORT_INPUT_AIDL_HAPTICS := true
 TW_BACKUP_EXCLUSIONS := /data/fonts,/data/adb/ap,/data/adb/ksu
 
