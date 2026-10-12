@@ -15,10 +15,10 @@
 
 ## Fixes build `38217828738` (OTG redesign + purges + battery test)
 
-- [ ] OTG redesign: plug → auto-tick ≤10s untouched
-- [ ] OTG redesign: manual checkbox iterates to `sdg2`
-- [ ] OTG redesign: per-candidate log lines visible on failure
-- [ ] OTG redesign: MTP survives a failed attempt; unplug/replug re-triggers
+- [ ] OTG redesign: plug → auto-tick ≤10s untouched (BLOCKED: no OTG adapter on hand)
+- [ ] OTG redesign: manual checkbox iterates to `sdg2` (BLOCKED: same)
+- [ ] OTG redesign: per-candidate log lines visible on failure (BLOCKED: same)
+- [ ] OTG redesign: MTP survives a failed attempt; unplug/replug re-triggers (BLOCKED: same)
 - [x] Vibration again (source-built effect lib)
 - [x] Battery % vs actual charge (health-HAL path)
 - [ ] Sideload without treble-compat check (next LOS nightly)
