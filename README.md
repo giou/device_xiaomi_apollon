@@ -4,6 +4,9 @@ Recovery device tree targeting **official LineageOS 24 (Android 17)** with
 working data decryption (FBEv1 + metadata wrappedkey). Still works on
 LineageOS 23.2 (same FBEv1 policy; the OS-version pin satisfies both).
 
+See **[FIXES.md](FIXES.md)** for the full delta vs stock OrangeFox (what changed
+and why), and **[docs/](docs/)** for per-issue detail dossiers.
+
 | Spec | |
 | :--- | :--- |
 | SoC | Qualcomm SM8250 Snapdragon 865 |

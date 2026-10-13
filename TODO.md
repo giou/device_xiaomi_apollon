@@ -60,7 +60,7 @@
 
 ## Decrypt stall — root cause localized (2026-10-13)
 
-Full dossier: `/home/ubuntu/apollon-recovery/decrypt-stall/FINDINGS.md`.
+Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
 - [x] Captured Hang 3 (build ...907): decrypt thread (recovery pid 618, tid 828)
   blocked in binder on gatekeeper `verify()`; gatekeeper HAL (643) wedged in
