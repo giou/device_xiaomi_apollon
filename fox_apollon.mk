@@ -37,8 +37,9 @@ FOX_MAINTAINER_PATCH_VERSION := 3
 #   OF_ENABLE_ALL_PARTITION_TOOLS=1 -> also lpmake/lpadd/lpflash/lpunpack
 #                                      + lpdump/lpdumpd/bootctl
 # Supersedes the earlier TW_EXCLUDE_LPDUMP/TW_EXCLUDE_LPTOOLS purge (see
-# BoardConfig.mk). Requires external/lptools sources present (manifest
-# twrp-default.xml ships them; builder has a defensive clone-if-missing).
+# BoardConfig.mk). Requires external/lptools sources, which the OrangeFox
+# manifest ships (twrp-default.xml -> phhusson/vendor_lptools) and repo sync
+# clones — same as the official miatoll tree (flags only, no builder step).
 OF_ENABLE_LPTOOLS := 1
 OF_ENABLE_ALL_PARTITION_TOOLS := 1
 
