@@ -8,7 +8,7 @@
 - [x] MTP single-entry
 - [x] OTG MSR-first disk: `sdg1` unmountable → `sdg2` (NTFS) mounted, backups at `/usb_otg/Fox` (log 20261013-1425)
 - [x] OTG single-partition disk: auto-mounted with only the data partition present (2026-10-13, MSR removed)
-- [ ] OTG unformatted-drive error path
+- [x] OTG unformatted/unmountable drive: clean `no mountable partition on this drive`, no hang (log 20261013-1436)
 - [ ] LOS zip flash with patching skipped
 - [x] OTA row gone, settings stable
 - [ ] Boot-time A/B: `fastboot reboot recovery` + `time adb wait-for-device`,
@@ -20,7 +20,7 @@
 - [x] OTG redesign: plug → auto-tick ≤10s untouched (log 20261013-1425: `apollon OTG: plug event, attempting mount`)
 - [x] OTG redesign: manual checkbox iterates to `sdg2` (proven twice on fixes build — re-verify quiet)
 - [x] OTG redesign: per-candidate log lines visible on failure (`/dev/block/sdg1 not mountable, trying next`)
-- [ ] OTG redesign: MTP survives a *failed* attempt; unplug/replug re-triggers (success path exercised only)
+- [x] OTG redesign: MTP restored after a *failed* attempt (`[MTP] Starting MTP` immediately after `no mountable partition`); unplug/replug re-triggers too
 - [x] `/usb_otg` rename: theme USB-Storage shortcut visible; OTG backups under `/usb_otg/Fox`
   (no `/usb-otg/Fox` migration needed — the old `/usb-otg` mount dir was replaced by `/usb_otg`)
 - [x] Vibration again (source-built effect lib)
