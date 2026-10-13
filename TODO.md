@@ -44,14 +44,28 @@
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
 
-## Build `38435351717` (R12.0_4 — encrypted backups + CE re-apply) — built & published, awaiting device test
+## Build `38435351717` (R12.0_4) — device-tested 2026-10-13 21:46
 
 - [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Fix: `TW_EXCLUDE_ENCRYPTED_BACKUPS := false` reinstated (the recovery `Android.mk` test is **inverted**: unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). `libopenaes`/`isaac` confirmed present in the published image.
 - [ ] Encrypted-backup **restore prompt**: the `(i)` icon no longer overlaps the text ("You…"). Fix: fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
-- [ ] `/data` unmount→remount ciphertext filenames readable without reboot — **independent of the decrypt stall**. Root cause: fscrypt's per-superblock keyring is destroyed on unmount and never re-added. Fix: `giou/android_system_vold@f07596e` (`fox_16.0-apollon`) + recovery fork `3217046d`. Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
 - [x] Version banner reads `R12.0_4` (confirmed in the published image)
 - [x] `Decrypt.cpp` compiles (host + arm), `libvold` builds, CE symbols linked into the recovery (confirmed in build log + image)
 - [ ] Carried over, still untested: LOS zip flash, sideload without treble-compat check, English-only UI / touch sanity
+
+### `/data` remount → ❌ still broken on R12.0_4 (diagnosed, re-fixed, not yet built)
+
+The CE re-apply **ran** on remount but was a **no-op**: `Attempting to unlock user
+storage` → `failed to fscrypt_prepare_user_storage`, and names stayed ciphertext.
+`fscrypt_unlock_ce_storage()` early-returns while its in-process map still lists
+the user (nothing clears it on unmount), so the key was never re-added. Deeper:
+the whole keyring is per-superblock, so the remount also destroys the **device
+key** — leaving `/data/misc/vold` (home of every DE/CE key blob) unreadable — and
+the **DE keys**. Re-installing CE alone can never work.
+
+Re-fixed (pending build): vold rebuilds the keyring the way boot does (device key
+→ on-disk DE keys → cached CE secret; no PIN needed, and the new DE reloader can
+never rewrite key material), and the recovery hook only arms on a real mount
+transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
 
 ## Retired
 
