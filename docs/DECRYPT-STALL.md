@@ -6,8 +6,13 @@ kernel stack capture.**
 ## Symptom
 
 After entering the correct PIN, recovery wedges forever: the log ends at
-`using secdis to decrypt spblob`, the screen dims (5→0), no error, no timeout.
-A hardware force-reboot clears it and the next decrypt works.
+`using secdis to decrypt spblob`, no error, no timeout — it stops *before* the
+`GateKeeper status ok` line that always follows in a good run. A hardware
+force-reboot clears it and the next decrypt works.
+
+(The `Set_Brightness … 5 → 0` lines that appear afterwards are just the
+recovery's screen-blank timer firing on the frozen page — **not** a symptom and
+not a trigger.)
 
 Intermittent, **not deterministic**: roughly 1 in 5–10 decrypts. Not tied to
 flashing, and not tied to cold vs warm reboot (proven by testing below).
@@ -117,8 +122,8 @@ mkdir -p /sys/kernel/tracing; mount -t tracefs nodev /sys/kernel/tracing; ls /sy
 ## History
 
 - **2026-10-13 22:21 (R12.0_4) — recurrence, same signature.** Log ends at
-  `using secdis to decrypt spblob`, brightness 5→0, UI thread alive
-  (blanktimer toggling), still hung ≥4.5 min when dmesg was captured. The dmesg
+  `using secdis to decrypt spblob` (before `GateKeeper status ok`), UI thread
+  alive, still hung ≥4.5 min when dmesg was captured. The dmesg
   contains no SysRq output (`echo l`/`echo t` were never run), so the
   kernel-function gap below is still open. A PIN-panel screenshot taken right
   before decrypting is incidental (pre-decrypt `/sdcard` is not mounted, so the
