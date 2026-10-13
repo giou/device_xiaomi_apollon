@@ -25,7 +25,8 @@
 - [x] Battery % vs actual charge (health-HAL path)
 - [ ] Sideload without treble-compat check (next LOS nightly)
 - [x] Quick backup: empty default → set once in Settings → persists across reboot
-- [ ] Super backup (dd) + ROM flash without lptools
+- [x] Super backup (dd): 8704 MB `super.emmc.win` + SHA2 digest, 540 s (log 20261013-1501)
+- [ ] ROM flash (LOS zip) — now with LP tools restored (official parity), so test the normal path
 - [x] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
 - [x] Reflash-button press (repack lossless with effect-lib registration)
 - [x] Offline charging — struck: the flag never lived in recovery's path
