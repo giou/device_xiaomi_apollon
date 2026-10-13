@@ -118,10 +118,14 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   SCM_INTERRUPTED retry (2 s / 1,000,000 retries, no sleeping) → new
   `SCM_V2_TIMED_OUT` → `-ETIMEDOUT`, logged once. Wedge becomes a loud error
   after ~2 s instead of an unkillable hang.
-- [ ] **Switch the build to compile the kernel from source** (decision taken):
-  device tree `TARGET_KERNEL_SOURCE`/`TARGET_KERNEL_CONFIG` per LOS, drop
-  `TARGET_PREBUILT_KERNEL`; builder clones the kernel fork with a fail-loud
-  assert that the patch is present. First kernel build is the real test.
+- [x] **Kernel built from source** (wired): the builder clones
+  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, builds `Image` with
+  LOS's defconfig set + the tree's clang r547379 (LTO+KCFI), asserts the patch
+  is in the image, and installs it over `prebuilt/apollon/kernel`. dtb/dtbo stay
+  the LOS blobs (same kernel commit).
+- [ ] **Verify the first source-built kernel boots and decrypts** (R12.0_5):
+  confirm the banner/boot works, `/data` decrypts, and the LD'd behaviour is
+  unchanged apart from our patch. Watch for LTO link memory on the runner.
 - [ ] Verify on device: a stall (if it recurs) must now fail after ~2 s with
   `scm_call failed` in dmesg instead of wedging.
 - [ ] Fallback if the source build proves unworkable: recovery-side bounded

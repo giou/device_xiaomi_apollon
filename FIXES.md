@@ -116,15 +116,28 @@ Repos involved:
 
 ## Kernel
 
-- **The kernel is now compiled from our fork instead of extracted.** The stall
-  fix below is a kernel patch, so the image no longer takes the LOS prebuilt.
-  Built with LOS's own configuration:
-  `TARGET_KERNEL_SOURCE := kernel/xiaomi/sm8250`,
-  `TARGET_KERNEL_CONFIG := vendor/kona-perf_defconfig vendor/debugfs.config
-  vendor/xiaomi/sm8250-common.config`, `BOARD_KERNEL_IMAGE_NAME := Image`
-  (from `android_device_xiaomi_sm8250-common@lineage-24.0`). The builder clones
-  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon` into the tree with a
-  fail-loud assert that our patch is present.
+- **The kernel is compiled from our fork, not extracted.** The builder clones
+  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon` and builds `Image`
+  with LOS's own config set for this device
+  (`android_device_xiaomi_sm8250-common@lineage-24.0`):
+  `vendor/kona-perf_defconfig` + `vendor/debugfs.config` +
+  `vendor/xiaomi/sm8250-common.config`, which enable `CONFIG_LTO_CLANG` +
+  `CONFIG_CFI_CLANG` — i.e. LTO + KCFI exactly as LOS ships it. Toolchain: the
+  clang this tree already carries (`clang-r547379`), used with `LLVM=1` so lld
+  and llvm-ar come from the same prebuilt. The built `Image` is installed over
+  `prebuilt/apollon/kernel`; the committed prebuilt remains as a one-commit
+  rollback.
+  - LOS's own kernel images are produced by their kernel CI with a *built* LLVM
+    (`llvm-r596125-release`, clang 22.0.2) **plus PGO/BOLT/MLGO profile data** —
+    not reproducible from public prebuilts. We match their config/flags, not
+    their exact binary; if the tree's clang ever misbehaves, pin its newer
+    sibling next.
+  - `dtb` and `recovery_dtbo` deliberately stay the LOS blobs: our fork is the
+    same kernel commit they were generated from and our only change is in the
+    Image, so they stay consistent (and the proven boot data is untouched).
+  - Two fail-loud asserts in the build step: the clone must contain the patch
+    (`scm_interrupted_give_up`), and the built image must contain the patch's log
+    string (`returned INTERRUPTED`).
 - **`SCM_INTERRUPTED` retry bounded (decrypt-stall fix).** `drivers/soc/qcom/scm.c`
   retried an `SCM_INTERRUPTED` SMC in an unbounded, non-logging loop while the
   caller held the SCM and qseecom locks, so a wedged QTEE produced a silent,
