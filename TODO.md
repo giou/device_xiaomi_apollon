@@ -44,11 +44,14 @@
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
 
-## Pending next build (fixed in tree/fork, NOT in R12.0_3)
+## Build `38435351717` (R12.0_4 — encrypted backups + CE re-apply) — built & published, awaiting device test
 
-- [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Root cause: commit 934bf8c purged `TW_EXCLUDE_ENCRYPTED_BACKUPS := false`, and the recovery `Android.mk` test is **inverted** (unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). Reinstated in the tree.
-- [ ] Encrypted-backup **restore prompt**: the `(i)` icon overlapped the text ("You…"). Fixed in fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
-- [ ] `/data` unmount→remount ciphertext filenames — **independent of the decrypt stall**. Root cause: fscrypt's per-superblock keyring is destroyed on unmount and never re-added. Fix: fork `giou/android_system_vold@f07596e` + builder override `b12ee13` + recovery fork `3217046d`. Verify per `notes/CE-REMOUNT-FIX.md`.
+- [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Fix: `TW_EXCLUDE_ENCRYPTED_BACKUPS := false` reinstated (the recovery `Android.mk` test is **inverted**: unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). `libopenaes`/`isaac` confirmed present in the published image.
+- [ ] Encrypted-backup **restore prompt**: the `(i)` icon no longer overlaps the text ("You…"). Fix: fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
+- [ ] `/data` unmount→remount ciphertext filenames readable without reboot — **independent of the decrypt stall**. Root cause: fscrypt's per-superblock keyring is destroyed on unmount and never re-added. Fix: `giou/android_system_vold@f07596e` (`fox_16.0-apollon`) + recovery fork `3217046d`. Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
+- [x] Version banner reads `R12.0_4` (confirmed in the published image)
+- [x] `Decrypt.cpp` compiles (host + arm), `libvold` builds, CE symbols linked into the recovery (confirmed in build log + image)
+- [ ] Carried over, still untested: LOS zip flash, sideload without treble-compat check, English-only UI / touch sanity
 
 ## Retired
 
