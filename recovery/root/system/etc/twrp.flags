@@ -3,6 +3,10 @@
 /data                      f2fs                /dev/block/bootdevice/by-name/userdata                 flags=fileencryption=ice;wrappedkey;keydirectory=/metadata/vold/metadata_encryption
 /cache                     ext4                /dev/block/bootdevice/by-name/cache                    flags=backup=1;wipeingui;wipeduringfactoryreset
 
+# Internal storage backup (ground rule C): separate from /data so media
+# can be backed up on its own (same line as official miatoll)
+/storage                   auto                /data/media/0                                            flags=display="Internal Storage";usermrf;backup=1;fsflags="bind,utf8";removable
+
 # super
 /system                    ext4                /dev/block/mapper/system                               flags=display="system";logical
 /system_ext                ext4                /dev/block/mapper/system_ext                           flags=display="system_ext";logical
@@ -42,4 +46,4 @@
 /efsg                      emmc                /dev/block/bootdevice/by-name/fsg                      flags=backup=1;subpartitionof=/efs1
 
 # Removable storage
-/usb-otg                   auto                /dev/block/sdg1    /dev/block/sdg4                     flags=display="USB-Storage";storage;wipeingui;removable;fsflags="utf8"
+/usb_otg                   auto                /dev/block/sdg1    /dev/block/sdg4                     flags=display="USB-Storage";storage;wipeingui;removable;fsflags="utf8"
