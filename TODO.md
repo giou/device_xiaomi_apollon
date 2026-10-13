@@ -7,7 +7,8 @@
 - [x] Built-in Magisk 31 addon install (tested on v17; mechanism identical on v18)
 - [x] MTP single-entry
 - [x] OTG MSR-first disk: `sdg1` unmountable → `sdg2` (NTFS) mounted, backups at `/usb_otg/Fox` (log 20261013-1425)
-- [ ] OTG single-partition disk + unformatted-drive error path (not covered by the MSR-first test)
+- [x] OTG single-partition disk: auto-mounted with only the data partition present (2026-10-13, MSR removed)
+- [ ] OTG unformatted-drive error path
 - [ ] LOS zip flash with patching skipped
 - [x] OTA row gone, settings stable
 - [ ] Boot-time A/B: `fastboot reboot recovery` + `time adb wait-for-device`,
