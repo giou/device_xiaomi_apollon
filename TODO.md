@@ -6,7 +6,8 @@
 - [x] Vibration (24.0 HAL + old effect prebuilt held up fine)
 - [x] Built-in Magisk 31 addon install (tested on v17; mechanism identical on v18)
 - [x] MTP single-entry
-- [ ] OTG on old iteration code (MSR-first disk; single-partition regression; unformatted-drive error)
+- [x] OTG MSR-first disk: `sdg1` unmountable → `sdg2` (NTFS) mounted, backups at `/usb_otg/Fox` (log 20261013-1425)
+- [ ] OTG single-partition disk + unformatted-drive error path (not covered by the MSR-first test)
 - [ ] LOS zip flash with patching skipped
 - [x] OTA row gone, settings stable
 - [ ] Boot-time A/B: `fastboot reboot recovery` + `time adb wait-for-device`,
@@ -15,10 +16,12 @@
 
 ## Fixes build `38217828738` (OTG redesign + purges + battery test)
 
-- [ ] OTG redesign: plug → auto-tick ≤10s untouched (needs build `38354849855`: entry-log proves branch fires)
-- [ ] OTG redesign: manual checkbox iterates to `sdg2` (proven twice on fixes build — re-verify quiet)
-- [ ] OTG redesign: per-candidate log lines visible on failure
-- [ ] OTG redesign: MTP survives a failed attempt; unplug/replug re-triggers
+- [x] OTG redesign: plug → auto-tick ≤10s untouched (log 20261013-1425: `apollon OTG: plug event, attempting mount`)
+- [x] OTG redesign: manual checkbox iterates to `sdg2` (proven twice on fixes build — re-verify quiet)
+- [x] OTG redesign: per-candidate log lines visible on failure (`/dev/block/sdg1 not mountable, trying next`)
+- [ ] OTG redesign: MTP survives a *failed* attempt; unplug/replug re-triggers (success path exercised only)
+- [x] `/usb_otg` rename: theme USB-Storage shortcut visible; OTG backups under `/usb_otg/Fox`
+  (no `/usb-otg/Fox` migration needed — the old `/usb-otg` mount dir was replaced by `/usb_otg`)
 - [x] Vibration again (source-built effect lib)
 - [x] Battery % vs actual charge (health-HAL path)
 - [ ] Sideload without treble-compat check (next LOS nightly)
