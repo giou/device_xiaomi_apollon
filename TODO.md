@@ -75,33 +75,32 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
-## Decrypt stall — root cause localized (2026-10-13)
+## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)
 
 Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
-- [x] Captured Hang 3 (build ...907): decrypt thread (recovery pid 618, tid 828)
-  blocked in binder on gatekeeper `verify()`; gatekeeper HAL (643) wedged in
-  `ioctl(/dev/qseecom, QSEECOM_IOCTL_SEND_CMD_REQ)`; process unkillable; only a
-  reboot clears it. `getService()`/managers/cold-boot/flash all ruled out.
-- [x] Official-parity TEE cleanup applied: `init.recovery.qcom.rc` stops
-  `vendor.qseecomd`/`gatekeeper-1-0`/`keymaster-4-0` on
-  `twrp.all.users.decrypted=true` (matches miatoll).
-- [ ] Next hang (pre-reboot): **SysRq capture** — `echo l` / `echo t` to
-  `/proc/sysrq-trigger` + `dmesg | tail -250` — to pin the exact kernel
-  function (qcom_scm vs qseecom ioctl vs libQSEEComAPI userspace loop).
-  debugfs is disabled → tzdbg/binder dumps unavailable.
-- [ ] **Recurrence 2026-10-13 22:21 (R12.0_4) — same signature, still uncaptured.**
-  Log ends at `using secdis to decrypt spblob` (before `GateKeeper status ok`),
-  UI thread alive, hung ≥4.5 min at dmesg capture. (The later brightness
-  `5→0` lines are just the screen-blank timer, not a symptom.) No SysRq dump in the provided
-  dmesg (`echo l`/`echo t` never ran) → the kernel-function gap is still open.
-  A PIN-panel screenshot taken immediately before decrypting is *incidental*.
-- [ ] Low priority, noted while reading that log: a screenshot taken **before**
+- [x] Captured (4th occurrence, R12.0_4) with SysRq `l`/`t` + process probes.
+  Exact frame: `__scm_call_armv8_64` (`drivers/soc/qcom/scm.c`, lines 108-134) —
+  `do { smc #0 } while (r0 == SCM_INTERRUPTED);` — **unbounded, no delay, no
+  logging**. Reached via `__scm_call2` ← `__qseecom_scm_call2_locked` ←
+  `qseecom_scm_call` ← `__qseecom_process_reentrancy` ← `__qseecom_send_cmd` ←
+  `qseecom_ioctl(QSEECOM_IOCTL_SEND_CMD_REQ)`. Gatekeeper HAL (pid 633): state R,
+  ~85 % of a core, `stime` 0 (no-sleep loop); a second caller spins on the driver
+  mutex (CPU2 → `mutex_spin_on_owner`) → livelock. Explains silent / 100 % CPU /
+  unkillable / reboot-only.
+- [x] Correction: the bounded `-EBUSY` loops (67x30 ms, both of which log) were
+  ruled out on sound grounds — but the spin is the INTERRUPTED retry one level
+  below them. "dmesg clean" was evidence *for* the kernel, not against.
+- [x] Official-parity TEE cleanup (`init.recovery.qcom.rc`) — parity only, not a
+  fix for this (the wedge is earlier, inside `verify()`).
+- [ ] **Decision needed:** kernel patch (bound the INTERRUPTED retry + log loud +
+  add `msleep`/signal check) → needs a *compiled* kernel (fork
+  `android_kernel_xiaomi_sm8250`, copy the official LOS build method). Departs
+  from the byte-identical kernel-extraction decision.
+- [ ] Fallback if we don't build a kernel: recovery-side bounded fail-loud (abort
+  the decrypt after N s with a clear message) — does not fix the spin.
+- [ ] Wait for user go-ahead before implementing either.
+- [ ] Low priority, noted from the same logs: a screenshot taken **before**
   `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
   not survive a reboot. Cosmetic; unrelated to the stall.
-- [ ] Wait for user go-ahead before implementing any fix (incl. bounded
-  fail-loud / reboot watchdog): hold until the bug recurs and is captured.
-- [ ] If kernel-side: compile `android_kernel_xiaomi_sm8250` with a defensive
-  patch (candidate new default; copy the official LOS build method). Departs
-  from the byte-identical kernel-extraction decision.
