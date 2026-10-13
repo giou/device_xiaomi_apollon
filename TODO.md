@@ -40,16 +40,23 @@
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
-## Next (decrypt stall diagnosis — watchdog reverted, diagnose-first)
+## Decrypt stall — root cause localized (2026-10-13)
 
-- Stall is inside vold `Decrypt.cpp` secdis branch: HIDL gatekeeper
-  `getService()` → `verify()` (both blocking, no timeout). File reads,
-  AIDL fast-fail, and service crashes all exonerated by log/dmesg diff.
-- [ ] Next hang (cable plugged): `getprop init.svc.gatekeeper-1-0`,
-  `ps -A | grep -E "gatekeeper|keymaster"`,
-  `cat /sys/kernel/debug/tzdbg/log | tail -n 30` — service present vs
-  TA-side isolates it definitively.
-- [ ] Note boot type (cold overnight vs warm reboot) on every decrypt;
-  both hangs were morning boots.
-- [ ] FIX the stall once capture isolates the layer (service-side:
-  init/packaging fix in our tree; TA-side: targeted workaround).
+Full dossier: `/home/ubuntu/apollon-recovery/decrypt-stall/FINDINGS.md`.
+
+- [x] Captured Hang 3 (build ...907): decrypt thread (recovery pid 618, tid 828)
+  blocked in binder on gatekeeper `verify()`; gatekeeper HAL (643) wedged in
+  `ioctl(/dev/qseecom, QSEECOM_IOCTL_SEND_CMD_REQ)`; process unkillable; only a
+  reboot clears it. `getService()`/managers/cold-boot/flash all ruled out.
+- [x] Official-parity TEE cleanup applied: `init.recovery.qcom.rc` stops
+  `vendor.qseecomd`/`gatekeeper-1-0`/`keymaster-4-0` on
+  `twrp.all.users.decrypted=true` (matches miatoll).
+- [ ] Next hang (pre-reboot): **SysRq capture** — `echo l` / `echo t` to
+  `/proc/sysrq-trigger` + `dmesg | tail -250` — to pin the exact kernel
+  function (qcom_scm vs qseecom ioctl vs libQSEEComAPI userspace loop).
+  debugfs is disabled → tzdbg/binder dumps unavailable.
+- [ ] Wait for user go-ahead before implementing any fix (incl. bounded
+  fail-loud / reboot watchdog): hold until the bug recurs and is captured.
+- [ ] If kernel-side: compile `android_kernel_xiaomi_sm8250` with a defensive
+  patch (candidate new default; copy the official LOS build method). Departs
+  from the byte-identical kernel-extraction decision.
