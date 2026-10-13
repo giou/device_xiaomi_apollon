@@ -43,7 +43,7 @@
 - [ ] TEE cleanup regression: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); still to test a *re*-decrypt/re-unlock with services stopped — e.g. unmount+mount /data, or remount another user
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
-- [ ] `/data` unmount→remount mounts but shows encrypted names. **Suspect: TEE-cleanup regression** — if the remount re-runs decryption, gatekeeper/keymaster are now `stopped`. Need log to confirm whether a re-decrypt is attempted (and fails) vs. TWRP just remounting the raw device (pre-existing behaviour, unrelated to the stop).
+- [ ] `/data` unmount→remount ciphertext filenames: **root-caused + fixed** (not the TEE cleanup — fscrypt's per-superblock keyring dies with the mount; see `decrypt-stall/CE-REMOUNT-FIX.md`). vold patch `955bb08` (builder) + fork `3217046d` re-apply the cached secret on remount. Verify per that doc once a build carries it.
 
 ## Pending next build (fixed in tree/fork, NOT in R12.0_3)
 
