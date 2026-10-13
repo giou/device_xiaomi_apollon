@@ -42,7 +42,8 @@
 - [x] LP tools usable in the terminal (`lptools` installed — confirmed)
 - [ ] TEE cleanup regression: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); still to test a *re*-decrypt/re-unlock with services stopped — e.g. unmount+mount /data, or remount another user
 - [x] Version banner reads `R12.0_3` (confirmed)
-- [ ] `/storage` Internal-Storage backup **source** entry appears and is usable (rule C)
+- [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
+- [ ] `/data` unmount→remount mounts but shows encrypted names. **Suspect: TEE-cleanup regression** — if the remount re-runs decryption, gatekeeper/keymaster are now `stopped`. Need log to confirm whether a re-decrypt is attempted (and fails) vs. TWRP just remounting the raw device (pre-existing behaviour, unrelated to the stop).
 
 ## Pending next build (fixed in tree/fork, NOT in R12.0_3)
 
