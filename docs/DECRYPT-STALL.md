@@ -116,6 +116,13 @@ mkdir -p /sys/kernel/tracing; mount -t tracefs nodev /sys/kernel/tracing; ls /sy
 
 ## History
 
+- **2026-10-13 22:21 (R12.0_4) — recurrence, same signature.** Log ends at
+  `using secdis to decrypt spblob`, brightness 5→0, UI thread alive
+  (blanktimer toggling), still hung ≥4.5 min when dmesg was captured. The dmesg
+  contains no SysRq output (`echo l`/`echo t` were never run), so the
+  kernel-function gap below is still open. A PIN-panel screenshot taken right
+  before decrypting is incidental (pre-decrypt `/sdcard` is not mounted, so the
+  PNG lands in the ramdisk — `dev="rootfs"` in the avc record).
 - A 60 s capped auto-reboot watchdog was written then reverted (diagnose-first).
   Do not re-apply without capture evidence + explicit order.
 - Early (pre-capture) hypotheses — cold-boot race, "service registers late" — are

@@ -90,6 +90,15 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   `/proc/sysrq-trigger` + `dmesg | tail -250` — to pin the exact kernel
   function (qcom_scm vs qseecom ioctl vs libQSEEComAPI userspace loop).
   debugfs is disabled → tzdbg/binder dumps unavailable.
+- [ ] **Recurrence 2026-10-13 22:21 (R12.0_4) — same signature, still uncaptured.**
+  Log ends at `using secdis to decrypt spblob`, brightness 5→0, UI thread alive
+  (blanktimer), hung ≥4.5 min at dmesg capture. No SysRq dump in the provided
+  dmesg (`echo l`/`echo t` never ran) → the kernel-function gap is still open.
+  A PIN-panel screenshot taken immediately before decrypting is *incidental*.
+- [ ] Low priority, noted while reading that log: a screenshot taken **before**
+  `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
+  actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
+  not survive a reboot. Cosmetic; unrelated to the stall.
 - [ ] Wait for user go-ahead before implementing any fix (incl. bounded
   fail-loud / reboot watchdog): hold until the bug recurs and is captured.
 - [ ] If kernel-side: compile `android_kernel_xiaomi_sm8250` with a defensive
