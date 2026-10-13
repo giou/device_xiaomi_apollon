@@ -43,6 +43,11 @@
 - [ ] TEE cleanup regression: after decrypt, a *re*-decrypt/re-unlock still works with qseecomd/gatekeeper/keymaster stopped (`twrp.all.users.decrypted` path) — e.g. unmount+mount /data, or remount another user
 - [ ] Version banner reads `R12.0_3`
 
+## Pending next build (fixed in tree/fork, NOT in R12.0_3)
+
+- [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Root cause: commit 934bf8c purged `TW_EXCLUDE_ENCRYPTED_BACKUPS := false`, and the recovery `Android.mk` test is **inverted** (unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). Reinstated in the tree.
+- [ ] Encrypted-backup **restore prompt**: the `(i)` icon overlapped the text ("You…"). Fixed in fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
+
 ## Retired
 
 - Updater-OTA ON-test — vanilla removes its UI by design.
