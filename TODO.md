@@ -40,15 +40,15 @@
 
 - [x] MTP date column in Windows (fork `bc6516b2`) — verified
 - [x] LP tools usable in the terminal (`lptools` installed — confirmed)
-- [ ] TEE cleanup regression: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); still to test a *re*-decrypt/re-unlock with services stopped — e.g. unmount+mount /data, or remount another user
+- [x] TEE cleanup: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); no in-session re-decrypt path exists (a `/data` remount reuses the decrypted device — see `notes/CE-REMOUNT-FIX.md`), so no regression observed. A future Password-based re-decrypt would need the services restarted; none exists today.
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
-- [ ] `/data` unmount→remount ciphertext filenames: **root-caused + fixed** (not the TEE cleanup — fscrypt's per-superblock keyring dies with the mount; see `decrypt-stall/CE-REMOUNT-FIX.md`). Fix = fork `giou/android_system_vold@f07596e` + builder override `b12ee13` + recovery fork `3217046d`. Verify per that doc once a build carries it.
 
 ## Pending next build (fixed in tree/fork, NOT in R12.0_3)
 
 - [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Root cause: commit 934bf8c purged `TW_EXCLUDE_ENCRYPTED_BACKUPS := false`, and the recovery `Android.mk` test is **inverted** (unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). Reinstated in the tree.
 - [ ] Encrypted-backup **restore prompt**: the `(i)` icon overlapped the text ("You…"). Fixed in fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
+- [ ] `/data` unmount→remount ciphertext filenames — **independent of the decrypt stall**. Root cause: fscrypt's per-superblock keyring is destroyed on unmount and never re-added. Fix: fork `giou/android_system_vold@f07596e` + builder override `b12ee13` + recovery fork `3217046d`. Verify per `notes/CE-REMOUNT-FIX.md`.
 
 ## Retired
 
