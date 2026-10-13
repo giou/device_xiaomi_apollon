@@ -93,13 +93,19 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   below them. "dmesg clean" was evidence *for* the kernel, not against.
 - [x] Official-parity TEE cleanup (`init.recovery.qcom.rc`) — parity only, not a
   fix for this (the wedge is earlier, inside `verify()`).
-- [ ] **Decision needed:** kernel patch (bound the INTERRUPTED retry + log loud +
-  add `msleep`/signal check) → needs a *compiled* kernel (fork
-  `android_kernel_xiaomi_sm8250`, copy the official LOS build method). Departs
-  from the byte-identical kernel-extraction decision.
-- [ ] Fallback if we don't build a kernel: recovery-side bounded fail-loud (abort
-  the decrypt after N s with a clear message) — does not fix the spin.
-- [ ] Wait for user go-ahead before implementing either.
+- [x] **Kernel fork + fix done:** `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`
+  (`f56cbb55`, from pristine `lineage-24.0` @ `6b34d247`) bounds the
+  SCM_INTERRUPTED retry (2 s / 1,000,000 retries, no sleeping) → new
+  `SCM_V2_TIMED_OUT` → `-ETIMEDOUT`, logged once. Wedge becomes a loud error
+  after ~2 s instead of an unkillable hang.
+- [ ] **Switch the build to compile the kernel from source** (decision taken):
+  device tree `TARGET_KERNEL_SOURCE`/`TARGET_KERNEL_CONFIG` per LOS, drop
+  `TARGET_PREBUILT_KERNEL`; builder clones the kernel fork with a fail-loud
+  assert that the patch is present. First kernel build is the real test.
+- [ ] Verify on device: a stall (if it recurs) must now fail after ~2 s with
+  `scm_call failed` in dmesg instead of wedging.
+- [ ] Fallback if the source build proves unworkable: recovery-side bounded
+  fail-loud (abort the decrypt after N s with a clear message).
 - [ ] Low priority, noted from the same logs: a screenshot taken **before**
   `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will

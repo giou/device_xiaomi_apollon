@@ -15,6 +15,8 @@ Repos involved:
 - **vold fork** — `giou/android_system_vold` (branch `fox_16.0-apollon`; `fox_16.0` kept
   pristine as an upstream mirror) — fork of `system/vold`.
 - **vibrator HAL fork** — `giou/android_vendor_qcom_opensource_vibrator`.
+- **kernel fork** — `giou/android_kernel_xiaomi_sm8250`
+  (`lineage-24.0-apollon`; `lineage-24.0` kept pristine).
 - **builder** — `giou/OrangeFox-Action-Builder`.
 
 ---
@@ -100,6 +102,27 @@ Repos involved:
   tree)*
 - **No green notification LED** on apollon → the inert LED setting is hidden
   (`OF_USE_GREEN_LED := 0`). *(tree: `fox_apollon.mk`)*
+
+## Kernel
+
+- **The kernel is now compiled from our fork instead of extracted.** The stall
+  fix below is a kernel patch, so the image no longer takes the LOS prebuilt.
+  Built with LOS's own configuration:
+  `TARGET_KERNEL_SOURCE := kernel/xiaomi/sm8250`,
+  `TARGET_KERNEL_CONFIG := vendor/kona-perf_defconfig vendor/debugfs.config
+  vendor/xiaomi/sm8250-common.config`, `BOARD_KERNEL_IMAGE_NAME := Image`
+  (from `android_device_xiaomi_sm8250-common@lineage-24.0`). The builder clones
+  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon` into the tree with a
+  fail-loud assert that our patch is present.
+- **`SCM_INTERRUPTED` retry bounded (decrypt-stall fix).** `drivers/soc/qcom/scm.c`
+  retried an `SCM_INTERRUPTED` SMC in an unbounded, non-logging loop while the
+  caller held the SCM and qseecom locks, so a wedged QTEE produced a silent,
+  unkillable, reboot-only wedge (gatekeeper HAL spinning at ~100 % of one core,
+  recoveries's `verify()` waiting forever). Now bounded to 2 s / 1e6 retries —
+  no sleeping, since these wrappers are also used from atomic context — logging
+  once and returning `-ETIMEDOUT`, so the decrypt fails loudly in ~2 s instead.
+  *(fork `lineage-24.0-apollon` `f56cbb55`; see
+  [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md))*
 
 ## Known issues carried (not fixed)
 
