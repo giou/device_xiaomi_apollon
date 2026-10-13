@@ -47,7 +47,7 @@
 ## Build `38435351717` (R12.0_4) — device-tested 2026-10-13 21:46
 
 - [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Fix: `TW_EXCLUDE_ENCRYPTED_BACKUPS := false` reinstated (the recovery `Android.mk` test is **inverted**: unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). `libopenaes`/`isaac` confirmed present in the published image.
-- [ ] Encrypted-backup **restore prompt**: the `(i)` icon no longer overlaps the text ("You…"). Fix: fork `993eb7ff` (`%col1_x%` → `%col1_x_indent%`, matching the other info blocks).
+- [ ] Encrypted-backup **restore prompt**: the `(i)` icon no longer overlaps the text. Superseded the one-page `993eb7ff` (reverted) — now done theme-wide in R12.0_5 (`c2165eef`, info text at `%col1_x_icon_text%`); verify on device.
 - [x] Version banner reads `R12.0_4` (confirmed in the published image)
 - [x] `Decrypt.cpp` compiles (host + arm), `libvold` builds, CE symbols linked into the recovery (confirmed in build log + image)
 - [ ] Carried over, still untested: LOS zip flash, sideload without treble-compat check, English-only UI / touch sanity
@@ -74,6 +74,26 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 ## Proven, don't retest
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
+
+## Build R12.0_5 (pending) — theme layout + corrected CE re-apply
+
+- [ ] `/data` unmount→remount: names readable without a reboot; log shows
+  `Reapply: rebuilding fscrypt keyring for 1 user(s)` … `Reapply: CE keys
+  restored`. (vold `74d592b` + recovery `e710f732`; R12.0_4's attempt was a
+  no-op. Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).)
+- [ ] Re-tick `/data` while it is already mounted → **no** re-apply, log quiet
+  (`Is_Mounted()` gate).
+- [ ] Theme form fields: Verify Password, restore password prompt, Rename
+  backup, file rename/chmod, Time offset — caption/input/underline all at x=48,
+  underline ending at 1032 (no clipping). (`c2165eef`, `7134e101`.)
+- [ ] Info-icon gap: PIN decrypt screen ("Data Partition is encrypted") and the
+  restore prompt — text snug after the icon (136) instead of 216.
+- [ ] Failure-text spacing uniform: wrong password on Set Password / the PIN
+  decrypt screen → the red text sits ~30px below the red underline, matching
+  Rename backup. (`5faba288`.)
+- [ ] Version banner reads `R12.0_5`.
+- [ ] Carried over, still untested: encrypted-backup lock icon, LOS zip flash,
+  sideload without the treble check, English-only UI / touch sanity.
 
 ## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)
 
