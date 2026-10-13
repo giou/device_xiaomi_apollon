@@ -51,3 +51,5 @@
   TA-side isolates it definitively.
 - [ ] Note boot type (cold overnight vs warm reboot) on every decrypt;
   both hangs were morning boots.
+- [ ] FIX the stall once capture isolates the layer (service-side:
+  init/packaging fix in our tree; TA-side: targeted workaround).
