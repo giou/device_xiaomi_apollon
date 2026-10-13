@@ -34,7 +34,7 @@
   to verify. Drop stands.
 - [ ] English-only UI, default icon layout, touch sanity
 - [x] Green-led setting hidden (Settings LED section absent — confirmed on device)
-- [ ] MTP dates in Windows: device MTP is AOSP-correct (`MTP_PROPERTY_DATE_MODIFIED` set per file from `st_mtime`, `YYYYMMDDThhmmss`). Decisive A/B: same PC/cable, boot Android and check if Windows shows dates (Android = ROM MTP). Shows there but not in recovery => recovery-side; shows nowhere => Windows MTP client (won't-fix). Also try a non-Explorer MTP client.
+- [ ] MTP dates in Windows: **root-caused + fixed in fork** (`giou/Recovery` `bc6516b2`). `mtp/ffs/node.cpp` sent `DATE_MODIFIED`/`DATE_ADDED` as `MTP_TYPE_UINT64` with an empty string; Windows Explorer reads them via `GetObjectPropList → queryNodeProperties`, so it saw an int where it expects a DateTime string → blank column. (Linux/libmtp used the ObjectInfo path, which already formatted strings, hence dates showed there.) Fix emits `formatDateTime()` strings with `MTP_TYPE_STR`. Needs device verification once a build carries it (Windows Explorer "Date"). `ORIGINAL_RELEASE_DATE` left as upstream (out of scope).
 
 ## Retired
 
