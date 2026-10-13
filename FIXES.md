@@ -71,6 +71,12 @@ Repos involved:
   *(tree: `BoardConfig.mk`)*
 - **`/storage` (Internal Storage) backup source** exposed in the Backup page.
   *(tree: `twrp.flags`/fstab)*
+- **Uniform failure-text spacing.** Each `%text_fail%` underline is 3px and its
+  error label used to sit on the *same* row, so the text started on the line; the
+  rename-backup page alone put it a row lower (30px). Every error text is now
+  anchored `y="below:idfail_N+27"` (27px under the underline's bottom edge = the
+  rename-backup spacing), so all nine are identical. *(recovery fork:
+  `gui/theme/portrait_hdpi/pages/*` + `pages/templates/templates.xml`)*
 - **Theme-wide form-field alignment.** `%col1_x_caption%` (216) is the *listbox
   icon-column width* (`<iconsize w="%col1_x_caption%">`), but it was also reused
   as the x for plain form fields, so every password/name field sat 168 px right
