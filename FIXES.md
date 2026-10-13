@@ -29,11 +29,14 @@ Repos involved:
   are decrypted, `vendor.qseecomd` / `gatekeeper-1-0` / `keymaster-4-0` are
   stopped so TEE clients are not left running across reboots.
   *(tree: `recovery/root/init.recovery.qcom.rc`, on `twrp.all.users.decrypted`)*
-- **CE / file-name keys re-applied on `/data` remount.** fscrypt uses a
-  per-superblock keyring that the kernel destroys when `/data` is unmounted, so
-  a remount showed ciphertext filenames until reboot. The derived secret is now
-  cached and re-applied on a `/data` remount (and cleared on data wipe).
-  *(vold fork `f07596e` + recovery fork hook; see [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md))*
+- **CE / file-name keys re-applied on `/data` remount.** fscrypt keys live in a
+  keyring owned by the `/data` superblock, so unmounting `/data` destroys the
+  **device key** and every **DE/CE key** with it (a remount then showed
+  ciphertext filenames until reboot, and `/data/misc/vold` itself went
+  unreadable). On a real remount the recovery now rebuilds the keyring the way
+  boot does — device key → DE keys → cached CE secret — none of which needs the
+  PIN. The secret cache is cleared on data wipe.
+  *(vold fork + recovery fork hook; see [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md))*
 
 ## USB / OTG
 
