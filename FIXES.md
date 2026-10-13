@@ -12,7 +12,7 @@ Repos involved:
 - **device tree** — `giou/device_xiaomi_apollon` (`fox_16.0`) — this repo.
 - **recovery fork** — `giou/Recovery` (`fox_16.0-apollon`) — fork of
   `bootable/recovery`.
-- **vold fork** — `giou/android_system_vold` (branch `apollon`; `fox_16.0` kept
+- **vold fork** — `giou/android_system_vold` (branch `fox_16.0-apollon`; `fox_16.0` kept
   pristine as an upstream mirror) — fork of `system/vold`.
 - **vibrator HAL fork** — `giou/android_vendor_qcom_opensource_vibrator`.
 - **builder** — `giou/OrangeFox-Action-Builder`.
