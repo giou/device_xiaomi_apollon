@@ -215,7 +215,6 @@ TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
 TW_INCLUDE_FBE_METADATA_DECRYPT := true
 TW_USE_FSCRYPT_POLICY := 1
-TW_INCLUDE_CRYPTO_FBE_XATTR := true
 
 # Network
 BUILD_BROKEN_USES_NETWORK := true
@@ -235,7 +234,6 @@ TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 			     
 # TWRP specific build flags
 TW_THEME := portrait_hdpi
-TW_DEVICE_VERSION := apollon-LOS23-16.0-v2
 RECOVERY_SDCARD_ON_DATA := true
 TARGET_RECOVERY_QCOM_RTC_FIX := true
 # TEST (user-ordered): legacy battery services OFF - status-bar % will come
