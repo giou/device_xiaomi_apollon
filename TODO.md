@@ -34,7 +34,14 @@
   to verify. Drop stands.
 - [ ] English-only UI, default icon layout, touch sanity
 - [x] Green-led setting hidden (Settings LED section absent — confirmed on device)
-- [ ] MTP dates in Windows: **root-caused + fixed in fork** (`giou/Recovery` `bc6516b2`). `mtp/ffs/node.cpp` sent `DATE_MODIFIED`/`DATE_ADDED` as `MTP_TYPE_UINT64` with an empty string; Windows Explorer reads them via `GetObjectPropList → queryNodeProperties`, so it saw an int where it expects a DateTime string → blank column. (Linux/libmtp used the ObjectInfo path, which already formatted strings, hence dates showed there.) Fix emits `formatDateTime()` strings with `MTP_TYPE_STR`. Needs device verification once a build carries it (Windows Explorer "Date"). `ORIGINAL_RELEASE_DATE` left as upstream (out of scope).
+- [x] MTP dates in Windows: **fixed** (fork `giou/Recovery` `bc6516b2`) — `mtp/ffs/node.cpp` sent `DATE_MODIFIED`/`DATE_ADDED` as `MTP_TYPE_UINT64`; the prop-list path Windows uses needs DateTime *strings*, while the ObjectInfo path (Linux/libmtp) already formatted them. Now emits `formatDateTime()` + `MTP_TYPE_STR`. **Verified on device: dates now show in Windows Explorer.**
+
+## Build `38403589621` (R12.0_3 — LP tools + MTP fix + TEE cleanup)
+
+- [x] MTP date column in Windows (fork `bc6516b2`) — verified
+- [ ] LP tools usable in the terminal: `lpdump` and `lptools` should now exist/run (supersedes the TW_EXCLUDE purge)
+- [ ] TEE cleanup regression: after decrypt, a *re*-decrypt/re-unlock still works with qseecomd/gatekeeper/keymaster stopped (`twrp.all.users.decrypted` path) — e.g. unmount+mount /data, or remount another user
+- [ ] Version banner reads `R12.0_3`
 
 ## Retired
 
