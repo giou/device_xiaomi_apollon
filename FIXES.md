@@ -71,14 +71,19 @@ Repos involved:
   *(tree: `BoardConfig.mk`)*
 - **`/storage` (Internal Storage) backup source** exposed in the Backup page.
   *(tree: `twrp.flags`/fstab)*
-- **Backup-encryption prompt layout.** On the *encrypted-backup restore* page the
-  `(i)` icon overlapped the prompt text, and the "Password" field sat in the
-  caption column (`%col1_x_caption%`, 216) where its width (`%input_w%`, 984) ran
-  off the 1080 screen. The prompt text now sits just past the icon
-  (`%col1_x_small_indent%`, 150) and the caption/input/underline/failure-text
-  group is left-aligned with the page body (`%col1_x%`, 48) — 48+984 = 1032, so
-  it fits with the usual 48 px margin. *(recovery fork:
-  `gui/theme/portrait_hdpi/pages/restore.xml`)*
+- **Theme-wide form-field alignment.** `%col1_x_caption%` (216) is the *listbox
+  icon-column width* (`<iconsize w="%col1_x_caption%">`), but it was also reused
+  as the x for plain form fields, so every password/name field sat 168 px right
+  of the body text and ran 120 px off the 1080 screen
+  (`216 + %input_w% 984 = 1200`) — visible as the misaligned "Verify Password"
+  field directly after the correctly aligned "Set Password" one, and on the
+  restore prompt, rename/chmod, time offset, PIN setup and debug pages. Every
+  field group (caption, input, underline, failure text) now uses `%col1_x%` (48;
+  `48 + 984 = 1032` fits), including the shared `templates.xml` password
+  templates. Text after an `icon_info` icon now uses a new `%col1_x_icon_text%`
+  (136 = 48 + 64 px icon + 24 px) instead of `%col1_x_indent%` (216, too far) or
+  `%col1_x%` (which overlapped the icon on `universal.xml`). *(recovery fork:
+  `gui/theme/portrait_hdpi/pages/*` + `resources/vars.xml`)*
 
 ## Build / packaging
 
