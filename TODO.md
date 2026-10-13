@@ -39,3 +39,9 @@
 ## Proven, don't retest
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
+
+## Next build (fork `eb70411` queued, not started)
+
+- [ ] Decrypt watchdog: normal PIN decrypts unaffected, no spurious reboot;
+  `/cache/recovery/fox_decrypt_wdt` absent after success; if a secdis
+  stall recurs, auto-reboot fires once (log: `apollon decrypt watchdog`)
