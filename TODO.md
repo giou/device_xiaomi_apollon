@@ -33,7 +33,8 @@
   (offline charging runs from the ROM's boot image), so there is nothing
   to verify. Drop stands.
 - [ ] English-only UI, default icon layout, touch sanity
-- [ ] Green-led setting hidden again
+- [x] Green-led setting hidden (Settings LED section absent — confirmed on device)
+- [ ] MTP dates in Windows: device MTP is AOSP-correct (`MTP_PROPERTY_DATE_MODIFIED` set per file from `st_mtime`, `YYYYMMDDThhmmss`). Decisive A/B: same PC/cable, boot Android and check if Windows shows dates (Android = ROM MTP). Shows there but not in recovery => recovery-side; shows nowhere => Windows MTP client (won't-fix). Also try a non-Explorer MTP client.
 
 ## Retired
 
