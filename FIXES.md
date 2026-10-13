@@ -69,8 +69,13 @@ Repos involved:
   *(tree: `BoardConfig.mk`)*
 - **`/storage` (Internal Storage) backup source** exposed in the Backup page.
   *(tree: `twrp.flags`/fstab)*
-- **Backup-encryption prompt layout.** The `(i)` icon overlapped the prompt
-  text; text is now indented past the icon. *(recovery fork `993eb7ff`:
+- **Backup-encryption prompt layout.** On the *encrypted-backup restore* page the
+  `(i)` icon overlapped the prompt text, and the "Password" field sat in the
+  caption column (`%col1_x_caption%`, 216) where its width (`%input_w%`, 984) ran
+  off the 1080 screen. The prompt text now sits just past the icon
+  (`%col1_x_small_indent%`, 150) and the caption/input/underline/failure-text
+  group is left-aligned with the page body (`%col1_x%`, 48) — 48+984 = 1032, so
+  it fits with the usual 48 px margin. *(recovery fork:
   `gui/theme/portrait_hdpi/pages/restore.xml`)*
 
 ## Build / packaging
