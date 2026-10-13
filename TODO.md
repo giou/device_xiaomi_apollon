@@ -39,9 +39,9 @@
 ## Build `38403589621` (R12.0_3 — LP tools + MTP fix + TEE cleanup)
 
 - [x] MTP date column in Windows (fork `bc6516b2`) — verified
-- [ ] LP tools usable in the terminal: `lpdump` and `lptools` should now exist/run (supersedes the TW_EXCLUDE purge)
-- [ ] TEE cleanup regression: after decrypt, a *re*-decrypt/re-unlock still works with qseecomd/gatekeeper/keymaster stopped (`twrp.all.users.decrypted` path) — e.g. unmount+mount /data, or remount another user
-- [ ] Version banner reads `R12.0_3`
+- [x] LP tools usable in the terminal (`lptools` installed — confirmed)
+- [ ] TEE cleanup regression: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); still to test a *re*-decrypt/re-unlock with services stopped — e.g. unmount+mount /data, or remount another user
+- [x] Version banner reads `R12.0_3` (confirmed)
 
 ## Pending next build (fixed in tree/fork, NOT in R12.0_3)
 
