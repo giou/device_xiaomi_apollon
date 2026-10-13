@@ -30,7 +30,7 @@
 # confirmed in dmesg); hide the inert setting
 OF_USE_GREEN_LED := 0
 OF_MAINTAINER := giou
-FOX_MAINTAINER_PATCH_VERSION := 1
+FOX_MAINTAINER_PATCH_VERSION := 2
 
 # Fox Addons payload (installer zip only; the .img carries none of this):
 # drop AromaFM (32-bit binary from 2012, segfaults on A16) and bundle
