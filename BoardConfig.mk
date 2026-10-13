@@ -223,12 +223,12 @@ BUILD_BROKEN_USES_NETWORK := true
 TW_INCLUDE_REPACKTOOLS := true
 TW_INCLUDE_RESETPROP := true
 TW_INCLUDE_LIBRESETPROP := true
-# lp tools: excluded, not merely un-enabled. The INCLUDE flags are no-ops
-# (dynamic-partition builds pull lpdump/lptools unless EXCLUDED -
-# verified: they built despite the dropped INCLUDEs). Zero runtime
-# invocations in recovery source or vendor scripts; super backup uses dd.
-TW_EXCLUDE_LPDUMP := true
-TW_EXCLUDE_LPTOOLS := true
+# lp tools: full OrangeFox/miatoll parity (OF_ENABLE_LPTOOLS=1 +
+# OF_ENABLE_ALL_PARTITION_TOOLS=1 in fox_apollon.mk). This SUPERSEDES the
+# earlier TW_EXCLUDE_LPDUMP/TW_EXCLUDE_LPTOOLS purge: apollon is a
+# dynamic-partition device and the official tree ships the logical-partition
+# CLI toolkit for manual use. The recovery core still handles super via
+# liblp.so; these are extras in the ramdisk.
 TW_HAS_MTP := true
 TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 			     
