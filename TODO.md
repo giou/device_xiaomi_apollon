@@ -11,8 +11,6 @@
 - [x] OTG unformatted/unmountable drive: clean `no mountable partition on this drive`, no hang (log 20261013-1436)
 - [ ] LOS zip flash with patching skipped
 - [x] OTA row gone, settings stable
-- [ ] Boot-time A/B: `fastboot reboot recovery` + `time adb wait-for-device`,
-  3 runs each on v17 vs v18 (logs can't time it — no per-line timestamps)
 - [x] Navbar lock (no hide option in settings)
 
 ## Fixes build `38217828738` (OTG redesign + purges + battery test)
