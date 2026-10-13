@@ -1,7 +1,8 @@
 # Decrypt stall (PIN hang) — root cause
 
-**Status: root cause CONFIRMED — kernel-side, `drivers/soc/qcom/scm.c`. Fix
-proposed; awaiting go-ahead (needs a compiled kernel).**
+**Status: root cause CONFIRMED and FIXED in our kernel fork
+(`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, `f56cbb55`). Next:
+switch the build to compile the kernel from source and verify on device.**
 
 ## Symptom
 
@@ -89,26 +90,51 @@ The loop we are stuck in is the **INTERRUPTED** retry *inside*
 `__scm_call_armv8_64`, one level below `__scm_call2` — unbounded and silent.
 "Nothing in dmesg" was evidence *for* the kernel, not against it.
 
-## Fix (proposed — needs a compiled kernel)
+## Fix — implemented in the kernel fork
 
-1. **Bound the INTERRUPTED retry** in `__scm_call_armv8_64` (and
-   `__scm_call_armv8_32`): cap the retries, `pr_err` once, and return a negative
-   errno. Then `__scm_call2`'s `ret < 0` path logs
-   `scm_call failed: func id …` and the ioctl returns an error — the HAL's
-   `verify()` fails fast and the recovery reports a decrypt failure instead of
-   wedging silently. (The TZ state still needs a reboot to clear; what changes
-   is that we *find out* immediately and the core stops burning.)
-2. **Make it cancellable** — `msleep(1)`/`cond_resched()` plus a
-   `fatal_signal_pending()` check, so the HAL can be killed/restarted without a
-   reboot.
-3. **Cost** — this is the first change that requires *compiling* the kernel:
-   fork `LineageOS/android_kernel_xiaomi_sm8250`, carry the minimal patch, and
-   build it the way LOS does. That departs from the "extract the LOS kernel
-   byte-identical" decision → **explicit go-ahead required**.
-4. **Non-kernel fallback** (recovery-side bounded fail-loud): abort the decrypt
-   after N seconds with a clear message. Does not fix the spin, only removes the
-   silent wedge. Previously deferred; the capture now exists, so this is on the
-   table again if you prefer not to build a kernel.
+Fork: **`giou/android_kernel_xiaomi_sm8250`**, branch **`lineage-24.0-apollon`**
+(`f56cbb55`), branched from the pristine `lineage-24.0` @ `6b34d247` (the anchor
+we were shipping as a prebuilt). Same convention as the recovery/vold forks.
+
+`drivers/soc/qcom/scm.c`, +47 lines, purely additive:
+
+- `scm_interrupted_give_up()` + `struct scm_interrupted_watch`: give up after
+  **2 s** (jiffies) or **1,000,000** retries, whichever comes first. The retry
+  count is the backstop for interrupts-off contexts where jiffies cannot advance.
+  **No sleeping** — these wrappers are also reached from atomic context
+  (`scm_call2_atomic` ← `arch/arm64/mm/fault.c` TLB conflict).
+- Applied to all three armv8 wrappers (`__scm_call_armv8_64`, arm64
+  `__scm_call_armv8_32`, arm32 `__scm_call_armv8_32`). On give-up: one `pr_err`
+  and `return SCM_V2_TIMED_OUT`.
+- New `SCM_V2_TIMED_OUT` (-13) → `scm_remap_error()` maps it to `-ETIMEDOUT`, so
+  the ioctl fails with a real errno. `__scm_call2`/`scm_call2_atomic` then log
+  `scm_call failed: func id …`, the HAL's `verify()` returns an error, and the
+  recovery reports a decrypt failure instead of hanging. It also becomes
+  killable, because the kernel loop now returns.
+- `scm_get_version()`'s loop is deliberately untouched (it returns a version, not
+  an errno).
+
+**Effect:** a wedged QTEE now costs ~2 s of one core and a clear error, instead
+of a silent, unkillable, reboot-only wedge. (The TZ-side state still needs a
+reboot to clear; we just stop being blind to it.)
+
+**Build change this implies** (in progress): compile the kernel from source
+instead of extracting the prebuilt. LOS's own config, from
+`android_device_xiaomi_sm8250-common@lineage-24.0`:
+
+```
+TARGET_KERNEL_SOURCE := kernel/xiaomi/sm8250
+TARGET_KERNEL_CONFIG := vendor/kona-perf_defconfig \
+                        vendor/debugfs.config \
+                        vendor/xiaomi/sm8250-common.config
+BOARD_KERNEL_IMAGE_NAME := Image
+BOARD_INCLUDE_DTB_IN_BOOTIMG := true
+BOARD_KERNEL_SEPARATED_DTBO := true
+BOARD_INCLUDE_RECOVERY_DTBO := true
+```
+
+Today the tree ships `prebuilt/apollon/{kernel,dtb,recovery_dtbo}` +
+`TARGET_PREBUILT_KERNEL`.
 
 ## Capture recipe (SysRq — reusable for any kernel-side stall)
 
