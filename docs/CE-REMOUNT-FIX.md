@@ -27,8 +27,10 @@ services back — hence the secret-based approach below.)
 ## Fix — secret-based CE re-apply
 Two parts:
 
-1. **vold** — forked as `giou/android_system_vold` (branch `fox_16.0`,
-   based on OrangeFox `953de96`, commit `f07596e`); a direct source edit:
+1. **vold** — forked as `giou/android_system_vold` (branch **`apollon`**,
+   based on OrangeFox `fox_16.0` @ `953de96`, commit `f07596e`; the fork's
+   `fox_16.0` branch is kept pristine as an upstream mirror); a direct source
+   edit:
    - Cache the secret inside `Decrypt_CE_storage(user_id, secret)` — captured
      there, so **no decrypt-logic change** and it works for every path
      (`Decrypt_User_Synth_Pass`, default-password, legacy).
