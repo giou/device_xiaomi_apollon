@@ -241,6 +241,13 @@ TARGET_RECOVERY_QCOM_RTC_FIX := true
 # below) if the percentage misreports. Reference 16.0 trees set this, but
 # health-hal-2-1 runs in our recovery so the HAL path may work on apollon.
 # TW_USE_LEGACY_BATTERY_SERVICES := true
+# Encrypted backups (AES): this variable must be NON-EMPTY to INCLUDE the
+# feature. The recovery module's check is inverted (Android.mk): unset adds
+# -DTW_EXCLUDE_ENCRYPTED_BACKUPS and skips libopenaes, while `:= false`
+# includes it (and prebuilt/Android.mk links libopenaes on any non-empty
+# value). Purging this line in 934bf8c silently disabled encrypted backups:
+# no backup-encryption lock icon, and no libopenaes to restore/verify one.
+TW_EXCLUDE_ENCRYPTED_BACKUPS := false
 TW_EXCLUDE_DEFAULT_USB_INIT := true
 TW_INCLUDE_NTFS_3G := true
 TW_NO_EXFAT_FUSE := true
