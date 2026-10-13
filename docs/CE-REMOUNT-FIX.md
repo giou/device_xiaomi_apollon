@@ -27,7 +27,7 @@ services back — hence the secret-based approach below.)
 ## Fix — secret-based CE re-apply
 Two parts:
 
-1. **vold** — forked as `giou/android_system_vold` (branch **`apollon`**,
+1. **vold** — forked as `giou/android_system_vold` (branch **`fox_16.0-apollon`**,
    based on OrangeFox `fox_16.0` @ `953de96`, commit `f07596e`; the fork's
    `fox_16.0` branch is kept pristine as an upstream mirror); a direct source
    edit:
