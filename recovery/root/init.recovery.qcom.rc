@@ -64,6 +64,17 @@ on property:vendor.sys.listeners.registered=true
     start keymaster-4-0
     start gatekeeper-1-0
 
+# Official-parity with the miatoll OF tree: release the TEE sessions once all
+# users are decrypted. Nothing in recovery needs qseecomd/gatekeeper/keymaster
+# after /data is unlocked, so stop them to leave the secure world clean.
+# (Not a fix for the intermittent qseecom decrypt hang - that wedges during
+#  verify(), before this point - but avoids leaving TEE clients running.)
+on property:twrp.all.users.decrypted=true
+    setprop crypto.ready 0
+    stop vendor.qseecomd
+    stop gatekeeper-1-0
+    stop keymaster-4-0
+
 service vendor.qseecomd /vendor/bin/qseecomd
     user root
     group root
