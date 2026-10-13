@@ -40,8 +40,14 @@
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
-## Next build (fork `eb70411` queued, not started)
+## Next (decrypt stall diagnosis — watchdog reverted, diagnose-first)
 
-- [ ] Decrypt watchdog: normal PIN decrypts unaffected, no spurious reboot;
-  `/cache/recovery/fox_decrypt_wdt` absent after success; if a secdis
-  stall recurs, auto-reboot fires once (log: `apollon decrypt watchdog`)
+- Stall is inside vold `Decrypt.cpp` secdis branch: HIDL gatekeeper
+  `getService()` → `verify()` (both blocking, no timeout). File reads,
+  AIDL fast-fail, and service crashes all exonerated by log/dmesg diff.
+- [ ] Next hang (cable plugged): `getprop init.svc.gatekeeper-1-0`,
+  `ps -A | grep -E "gatekeeper|keymaster"`,
+  `cat /sys/kernel/debug/tzdbg/log | tail -n 30` — service present vs
+  TA-side isolates it definitively.
+- [ ] Note boot type (cold overnight vs warm reboot) on every decrypt;
+  both hangs were morning boots.
