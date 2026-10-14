@@ -75,6 +75,18 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
+## Build R12.0_6 (pending) — remount fix (cached key material) + extra languages
+
+- [ ] `/data` untick→tick with the vold cache in place: log shows
+  `Reapply: rebuilding the fscrypt keyring after /data remount` → `device key
+  re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`, and
+  `/data/media/0` is readable **without a reboot**.  (vold `aaa3135`; if a step
+  fails, its breadcrumb names it and `adb logcat` has the errno.)
+- [ ] Settings > Regional > Language lists the four extras (Spanish, Hungarian,
+  Simplified and Traditional Chinese) and CJK text renders.  (`TW_EXTRA_LANGUAGES`
+  in the tree, `cfabd87`.)
+- [ ] Release title carries `(R12.0_6)` - the naming change in builder `bce00ff`.
+
 ## Build R12.0_5 (`38482616737`, published 2026-10-14 01:48) — theme layout + corrected CE re-apply + kernel from source
 
 - [ ] `/data` unmount→remount: names readable without a reboot; log shows
