@@ -77,16 +77,20 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 ## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 
-- [ ] Decrypt works first try and qseecomd started late: logcat shows
-  `starting service 'vendor.qseecomd'` under `on boot`, not `on init`.
+- [ ] qseecomd started late: logcat should show `starting service
+  'vendor.qseecomd'` under `on boot`, not `on init` (decrypt itself verified
+  working on R12.0_7 2026-10-14; this session's logcat wrapped past boot so
+  the start lines are gone — needs an early-pull logcat. `rpmb
+  invalid-device` count this session: 0).
 - [ ] Pristine kernel regression check: banner `R12.0_7`, boots, decrypts;
   no `returned INTERRUPTED` string in the image (patch gone by design).
 - [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
   recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
 - [x] Release title carries `(R12.0_7)` (confirmed: `OrangeFox Recovery for apollon // 20261014 (R12.0_7)`).
-- [ ] Remount with vold v3 (`2728d08`): untick→tick shows `rebuilding…` →
+- [x] Remount with vold v3 (`2728d08`): untick→tick shows `rebuilding…` →
   `device key re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`,
-  `/data/media/0` readable without reboot.
+  `/data/media/0` readable without reboot. **Verified on device 2026-10-14
+  (R12.0_7) — twice in one session, zero FAILED lines.**
 
 ## Build R12.0_6 (pending) — remount fix (cached key material) + extra languages
 
