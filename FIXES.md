@@ -168,9 +168,9 @@ Repos involved:
   carried a 2 s / 1e6-retry bound (`f56cbb55`, reverted in `ee83446`) while the
   occurrence-4 SMC-spin was thought to be the bug. Occurrence 5 proved the
   recurring stall is a userspace RPMB livelock whose SMCs all complete, which
-  no SMC-level bound can catch — and the user ordered the patch out. The fork
-  (`lineage-24.0-apollon`) is currently identical to pristine `lineage-24.0`
-  (verified: empty diff on `scm.c`); the branch is kept for any future need.
+  no SMC-level bound can catch — and the user ordered the patch out. Both
+  commits are gone from the branch (reset to pristine 2026-10-14; the attempt
+  is archived as tag `archive/scm-interrupted-bound-attempt`).
   The source-build pipeline is unchanged (same config/toolchain/asserts minus
   the patch-string check). See [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
