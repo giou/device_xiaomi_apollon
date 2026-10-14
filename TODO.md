@@ -81,6 +81,7 @@ transition.
 - [x] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin` (with kmsg lines), `on boot` runs exec-then-start in the shipped init rc (verified in image).
 - [ ] Stall-rate validation over subsequent decrypts: run the `docs/DECRYPT-STALL.md` §Validation steps each boot (gate verdict, RPMB count, sg fd); the bar is ~30 clean runs. A recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
 - [x] Release title carries `(R12.0_8)` (confirmed: `OrangeFox Recovery for apollon // 20261015 (R12.0_8)`). Assets renamed in place to `OrangeFox-R12.0_8-Unofficial-apollon.*` (hash-verified copies, old names deleted); future runs rename at build time via the workflow step.
+- [ ] CI shakedown run `38652501708` (tree `13183d5`, version kept at `R12.0_8`): confirm asset rename, Magisk checksum, action pins, corrected release notes. **Delete the release and its tag once green** - the image is functionally identical to R12.0_8, so do not keep it.
 
 ## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 
