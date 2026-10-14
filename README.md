@@ -1,36 +1,35 @@
 # OrangeFox device tree for Xiaomi apollon (Mi 10T / Mi 10T Pro / Redmi K30S Ultra)
 
-Recovery device tree targeting **official LineageOS 24 (Android 17)** with
-working data decryption (FBEv1 + metadata wrappedkey). Still works on
-LineageOS 23.2 (same FBEv1 policy; the OS-version pin satisfies both).
+This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv1 and metadata wrappedkey. It also works on LineageOS 23.2, which uses the same FBEv1 policy.
 
-See **[docs/DECRYPT-STALL.md](docs/DECRYPT-STALL.md)** for the open decrypt-stall dossier.
+See [docs/DECRYPT-STALL.md](docs/DECRYPT-STALL.md) for the open decrypt-stall dossier.
 
 ## Features and custom changes
 
-- LineageOS 24 FBEv1 data decryption
-- TEE services stopped after decrypt
-- CE/file-name keys re-applied on `/data` remount
-- qseecomd late start with sg readiness gate
-- Kernel built from source (LOS config, LTO + CFI)
-- dtb/recovery_dtbo from LineageOS
-- Logical-partition tools
-- Magisk 31 addon, no AromaFM
+- Data decryption for LineageOS 24
+- TEE cleanup after decrypt
+- Readable file names after `/data` remount
+- TEE start after storage is ready
+- Kernel built from source
+- Boot blobs from LineageOS
+- Logical partition tools
+- Magisk 31, no AromaFM
 - Encrypted backups
-- `/storage` backup source
-- MTP dates in Windows Explorer
-- Single MTP storage entry
-- OTG plug-event automount with candidate iteration
+- Internal storage as backup source
+- Correct MTP dates in Windows
+- One MTP storage entry
+- Automatic USB-OTG mount
 - `/usb_otg` mount point
-- Custom USB init
-- Extra languages (Spanish, Hungarian, Simplified/Traditional Chinese)
-- Uniform error-text spacing and form-field alignment (theme)
-- Source-built vibrator HAL, no green-LED setting
-- On-screen navbar lock
+- Custom USB setup
+- More languages (Spanish, Hungarian, Simplified/Traditional Chinese)
+- Aligned theme text and icons
+- Vibrator driver built from source
+- No LED setting
+- Locked navigation bar
 - AVB 2.0 patching
-- LOS-only: no MIUI checks, no MIUI OTA
-- Security-patch and OS-version pins
-- Recovery fork fixes (compiler prototypes, repacker target, reflash menu item)
+- No MIUI code or updates
+- Pinned security patch and OS version
+- Recovery build fixes (compiler, repacker, reflash menu)
 
 | Spec | |
 | :--- | :--- |
@@ -42,64 +41,9 @@ See **[docs/DECRYPT-STALL.md](docs/DECRYPT-STALL.md)** for the open decrypt-stal
 | Display | 6.67" 1080x2400 IPS, 144 Hz |
 | Battery | 5000 mAh |
 | OTA assert | `apollon,apollo,apollopro` |
-| Kernel | 4.19.325, built from source (`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI); `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
+| Kernel | 4.19.325, built from source (`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI). `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
 
-Branch **`fox_16.0`** (default) — native Android 16 build
-(`fox_16.0` manifest, SDK 36).
-
-## Build
-
-Sync the `fox_16.0` manifest with the OrangeFox sync script, then clone this
-tree to `device/xiaomi/apollon`:
-
-```
-./orangefox_sync.sh --branch 16.0 --path ~/OrangeFox_16.0
-cd ~/OrangeFox_16.0
-git clone --depth=1 --single-branch --branch fox_16.0 \
-  https://github.com/giou/device_xiaomi_apollon.git device/xiaomi/apollon
-```
-
-Extra sources (`vendor/qcom/opensource/vibrator` for the AIDL vibrator HAL)
-are declared in [twrp.dependencies](twrp.dependencies) and cloned by this
-repo's own `OrangeFox - Build` workflow (`Clone TWRP dependencies` step) —
-or clone them manually to the listed `target_path`.
-
-Build:
-
-```
-source build/envsetup.sh
-lunch twrp_apollon-bp2a-eng
-mka adbd recoveryimage
-```
-
-Out: `out/target/product/apollon/OrangeFox-R12.0-Unofficial-apollon.img`
-(`R12.0` is the OrangeFox release version, not Android. Published releases are
-titled `... (R12.0_<n>)` from `FOX_MAINTAINER_PATCH_VERSION` in
-`fox_apollon.mk` — check the recovery banner matches the file.)
-
-## Notes for maintainers
-
-- FBEv1 (`fileencryption=ice`, `TW_USE_FSCRYPT_POLICY := 1`) matches
-  LineageOS. FBEv2 trees are for MIUI/HyperOS and will *not* decrypt LOS.
-- Security patch is pinned to 2099-12-31 (SKKK convention): QTI unwrapping
-  is version-sensitive, so an honest SPL breaks decrypt on every monthly
-  OTA. Far-future stamp survives bumps; refresh kernel/blobs per nightly.
-- OS version is pinned to 99 for the same reason: LOS re-binds key blobs
-  to the OS version on boot, so a recovery reporting older (16 vs 17)
-  fails metadata unwrap. 99 satisfies both LOS 23 and 24.
-- `vendorsetup.sh` is mondrian-style with an `FDEVICE` guard — the `fox_16.0`
-  manifest sources every device tree's `vendorsetup.sh` at lunch.
-- "Flash current OrangeFox" persists the *running* version (partition
-  kernel + live ramdisk); moving versions needs the full zip, which
-  carries a matched kernel+ramdisk pair.
-- `TARGET_RECOVERY_PIXEL_FORMAT` must stay **unquoted**: the 16.0 soong
-  config emitter writes it raw into `product_config.json`.
-- `ds28e16: Failed to reset ds28e16!` dmesg spam is the Maxim 1-Wire
-  battery authenticator not answering — expected with a replacement
-  (non-original) battery pack, which lacks the chip. Harmless: fuel
-  gauge, charging, and decrypt are independent of it. Do not "fix".
-- The vibrator HAL is source-built; `BOARD_RECOVERY_IMAGE_PREPARE` stages it
-  into the ramdisk and fails loudly if it wasn't built.
+Branch **`fox_16.0`** is the default. It builds Android 16 native code with the `fox_16.0` manifest (SDK 36).
 
 ## Credits
 

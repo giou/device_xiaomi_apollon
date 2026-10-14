@@ -1,29 +1,27 @@
-# Decrypt stall (PIN hang) — root cause
+# Decrypt stall (PIN hang): root cause
 
-**Status: root cause CONFIRMED and FIXED in our kernel fork
-(`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, `f56cbb55`). Next:
-switch the build to compile the kernel from source and verify on device.**
+**Status: the cause is a userspace RPMB race, not the kernel. The fix is a
+storage gate before the TEE start. The gate waits for validation over many
+decrypts. An older kernel patch is removed.**
 
 ## Symptom
 
-After entering the correct PIN, recovery wedges forever: the log ends at
-`using secdis to decrypt spblob`, no error, no timeout — it stops *before* the
-`GateKeeper status ok` line that always follows in a good run. A hardware
-force-reboot clears it and the next decrypt works.
+After you enter the correct PIN, recovery stops forever. The log ends at
+`using secdis to decrypt spblob`. No error appears. No timeout occurs. The
+stop is *before* the `GateKeeper status ok` line of a good run. Only a
+hardware force-reboot clears it. The next decrypt works.
 
-(The `Set_Brightness … 5 → 0` lines that appear afterwards are just the
-recovery's screen-blank timer firing on the frozen page — **not** a symptom and
-not a trigger.)
+(The `Set_Brightness … 5 → 0` lines after the stop are the screen-blank timer
+on the frozen page. They are not a symptom. They are not a trigger.)
 
-Intermittent, **not deterministic**: roughly 1 in 5–10 decrypts. Not tied to
-flashing, and not tied to cold vs warm reboot (proven by testing below).
+The stop is intermittent, not fixed: about 1 in 5–10 decrypts. It does not
+depend on flashing. It does not depend on cold or warm reboot.
 
-## Root cause (confirmed 2026-10-13, R12.0_4)
+## Occurrence 4 (2026-10-13, R12.0_4): SMC spin, captured
 
-Captured with SysRq on the 4th occurrence (recovery pid 608). Three views line
-up:
+SysRq captured the 4th occurrence (recovery pid 608). Three views match:
 
-**1. `sysrq: Show backtrace of all active CPUs` — CPU5** (the wedged one):
+**1. `sysrq: Show backtrace of all active CPUs`, CPU5 (the stuck one):**
 
 ```
 __scm_call2.llvm... +0xe0/0x448          <- drivers/soc/qcom/scm.c
@@ -35,20 +33,20 @@ qseecom_ioctl+0x3ffc/0x6da0              <- QSEECOM_IOCTL_SEND_CMD_REQ
 do_vfs_ioctl / __arm64_sys_ioctl / el0_svc
 ```
 
-**2. CPU2 at the same instant** — a *second* qseecom caller spinning on the
-driver lock the wedged one holds:
+**2. CPU2 at the same instant:** a second qseecom caller spins on the
+driver lock of the stuck caller:
 
 ```
 mutex_spin_on_owner -> __mutex_lock -> qseecom_ioctl+0x1064/0x6da0
 ```
 
-**3. Process view** — `android.hardware.gatekeeper@1.0-service-qti` (pid 633):
-state **R**, `utime` 46718 → 46972 (≈85 % of a core) with `stime` 0 → it is
-burning CPU in a **no-sleep** loop. `qseecomd`'s threads are all parked in
-`qseecom_ioctl+0x2b40` (the normal listener wait). Recovery tid 814 is parked in
-`binder_ioctl_write_read` — waiting on the gatekeeper reply, as always.
+**3. Process view:** `android.hardware.gatekeeper@1.0-service-qti` (pid 633)
+has state **R**. Its `utime` moved 46718 → 46972 (about 85 % of one core).
+Its `stime` is 0. It burns CPU in a loop with no sleep. All `qseecomd`
+threads wait in `qseecom_ioctl+0x2b40` (the normal listener wait). Recovery
+tid 814 waits in `binder_ioctl_write_read` for the gatekeeper reply.
 
-**The loop itself** — the raw SMC wrapper, `drivers/soc/qcom/scm.c`:
+**The loop:** the raw SMC wrapper in `drivers/soc/qcom/scm.c`:
 
 ```c
 /* __scm_call_armv8_64(), lines 108-134 */
@@ -57,166 +55,139 @@ do {
 } while (r0 == SCM_INTERRUPTED);         /* SCM_INTERRUPTED == 1, line 28 */
 ```
 
-**No bound, no delay, no cancellation, no logging.** While QTEE answers an SMC
-with `SCM_INTERRUPTED` (1), this spins forever inside the kernel, holding the
-request context. That single fact explains every observed behaviour:
+**No bound, no delay, no cancellation, no logging.** While the secure world
+answers an SMC with `SCM_INTERRUPTED` (1), this loop spins forever in the
+kernel. That one fact explains every behavior seen:
 
-- **silent** — unlike the EBUSY retries, this path logs nothing, so dmesg was
-  clean and the kernel looked innocent;
-- **100 % CPU** — no `msleep`/`cond_resched()` in the loop;
-- **unkillable** — no signal check, so `SIGKILL` from
-  `setprop ctl.restart gatekeeper-1-0` can never take effect;
-- **only a reboot clears it** — userspace cannot cancel a kernel SMC loop.
+- The wedge is silent: this path logs nothing, unlike the EBUSY retries.
+  dmesg was clean, and the kernel looked innocent.
+- It burns 100 % CPU: the loop has no `msleep`/`cond_resched()`.
+- It is unkillable: the loop has no signal check. `SIGKILL` from
+  `setprop ctl.restart gatekeeper-1-0` cannot take effect.
+- Only a reboot clears it: userspace cannot stop a kernel SMC loop.
 
-**Why QTEE keeps answering INTERRUPTED** (mechanism): QTEE wants a qseecomd
-listener to complete something before it can finish the request, while the
-wedged caller holds the driver lock — so the listener (all of qseecomd's threads
-are in the listener wait, and one more caller spins on the mutex on CPU2) cannot
-run. Mutual wait → livelock. Intermittent because it depends on a race in that
-handshake.
+**Why the secure world keeps answering INTERRUPTED** (reading at the time):
+the secure world waits for a qseecomd listener before it finishes the
+request. The stuck caller holds the driver lock. All qseecomd threads wait
+in the listener wait, and one more caller spins on the mutex on CPU2. Each
+side waits for the other side. The result is a livelock. It is intermittent
+because it depends on a race in that handshake. (Occurrence 5 later showed a
+userspace RPMB storm. The spin here can be the same storm seen one level
+down. That link is unknown.)
 
-## Correction: the SCM layer was wrongly ruled out
+## Correction: the SCM layer was ruled out by mistake
 
-The previous version of this doc ruled the kernel SCM layer out because the
-`-EBUSY` secure-world retries are bounded — that reasoning was right about the
-wrong loop. Both EBUSY loops are genuinely bounded *and loud*:
+An earlier version of this file ruled out the kernel SCM layer. The reason
+was that the `-EBUSY` secure-world retries have bounds. That reason was
+right about the wrong loop. Both EBUSY loops have bounds and log loudly:
 
-- `drivers/misc/qseecom.c:470` `__qseecom_scm_call2_locked` — 67 × 30 ms, logs
-  `secure world has been busy for 1 second!`
-- `drivers/soc/qcom/scm.c:351` `__scm_call2` — 67 × 30 ms, logs
-  `scm: secure world has been busy for 1 second!`
+- `drivers/misc/qseecom.c:470` `__qseecom_scm_call2_locked` — 67 × 30 ms. It logs `secure world has been busy for 1 second!`
+- `drivers/soc/qcom/scm.c:351` `__scm_call2` — 67 × 30 ms. It logs `scm: secure world has been busy for 1 second!`
 
-The loop we are stuck in is the **INTERRUPTED** retry *inside*
-`__scm_call_armv8_64`, one level below `__scm_call2` — unbounded and silent.
-"Nothing in dmesg" was evidence *for* the kernel, not against it.
+The stuck loop is the **INTERRUPTED** retry *inside*
+`__scm_call_armv8_64`, one level below `__scm_call2`. It has no bound and
+logs nothing. Clean dmesg was evidence *for* the kernel, not against it.
 
-## Fix — kernel bound (REVERTED 2026-10-14; kept here as history)
+## Removed fix: kernel bound (history)
 
-Fork: **`giou/android_kernel_xiaomi_sm8250`**, branch **`lineage-24.0-apollon`**
-(`f56cbb55`), branched from the pristine `lineage-24.0` @ `6b34d247` (the anchor
-we were shipping as a prebuilt). Same convention as the recovery/vold forks.
+The fork `giou/android_kernel_xiaomi_sm8250`, branch `lineage-24.0-apollon`,
+once carried a bound in `drivers/soc/qcom/scm.c` (`f56cbb55`, 47 lines,
+additive only). It gave up after **2 s** or **1,000,000** retries. The count
+is the backstop for contexts where time stands still. It never sleeps,
+because atomic contexts reach these wrappers. On give-up it logged once and
+returned `SCM_V2_TIMED_OUT` (-13), which maps to `-ETIMEDOUT`. The decrypt
+then failed loudly after about 2 s instead of hanging.
 
-`drivers/soc/qcom/scm.c`, +47 lines, purely additive:
+Occurrence 5 proved the recurring stall never enters this loop. The patch
+left the branch again. The attempt lives on as tag
+`archive/scm-interrupted-bound-attempt`.
 
-- `scm_interrupted_give_up()` + `struct scm_interrupted_watch`: give up after
-  **2 s** (jiffies) or **1,000,000** retries, whichever comes first. The retry
-  count is the backstop for interrupts-off contexts where jiffies cannot advance.
-  **No sleeping** — these wrappers are also reached from atomic context
-  (`scm_call2_atomic` ← `arch/arm64/mm/fault.c` TLB conflict).
-- Applied to all three armv8 wrappers (`__scm_call_armv8_64`, arm64
-  `__scm_call_armv8_32`, arm32 `__scm_call_armv8_32`). On give-up: one `pr_err`
-  and `return SCM_V2_TIMED_OUT`.
-- New `SCM_V2_TIMED_OUT` (-13) → `scm_remap_error()` maps it to `-ETIMEDOUT`, so
-  the ioctl fails with a real errno. `__scm_call2`/`scm_call2_atomic` then log
-  `scm_call failed: func id …`, the HAL's `verify()` returns an error, and the
-  recovery reports a decrypt failure instead of hanging. It also becomes
-  killable, because the kernel loop now returns.
-- `scm_get_version()`'s loop is deliberately untouched (it returns a version, not
-  an errno).
+The kernel still builds from source with the LOS config set for this
+device: `vendor/kona-perf_defconfig` plus `vendor/debugfs.config` plus
+`vendor/xiaomi/sm8250-common.config` plus `vendor/xiaomi/apollo.config`.
+The toolchain is the tree clang (`clang-r547379`) with `LLVM=1` on the
+config phase and on the build. Two traps from the bring-up stay on record.
+First, `apollo.config` is not optional: it selects `CONFIG_MACH_XIAOMI_SM8250`
+and supplies the touchscreen driver, and a build without it fails on unused
+variables through `CONFIG_CC_WERROR=y`. Second, `LLVM=1` belongs on the
+config phase too: without it the choice resolves silently to
+`CONFIG_LTO_NONE`, with no LTO and no CFI. The LOS kernel CI uses a newer
+built LLVM plus profile data, which public prebuilts cannot reproduce. The
+`dtb` and `recovery_dtbo` stay LOS blobs. The committed prebuilt stays as a
+rollback.
 
-**Effect:** a wedged QTEE now costs ~2 s of one core and a clear error, instead
-of a silent, unkillable, reboot-only wedge. (The TZ-side state still needs a
-reboot to clear; we just stop being blind to it.)
-
-**Build change this implies** (in progress): compile the kernel from source
-instead of extracting the prebuilt. LOS's own config, from
-`android_device_xiaomi_sm8250-common@lineage-24.0`:
-
-```
-TARGET_KERNEL_SOURCE := kernel/xiaomi/sm8250
-TARGET_KERNEL_CONFIG := vendor/kona-perf_defconfig \
-                        vendor/debugfs.config \
-                        vendor/xiaomi/sm8250-common.config
-BOARD_KERNEL_IMAGE_NAME := Image
-BOARD_INCLUDE_DTB_IN_BOOTIMG := true
-BOARD_KERNEL_SEPARATED_DTBO := true
-BOARD_INCLUDE_RECOVERY_DTBO := true
-```
-
-Today the tree ships `prebuilt/apollon/{kernel,dtb,recovery_dtbo}` +
-`TARGET_PREBUILT_KERNEL`.
-
-## Occurrence 5 (2026-10-14, R12.0_5) — RPMB userspace spin; the kernel bound did NOT fire
+## Occurrence 5 (2026-10-14, R12.0_5): RPMB userspace spin
 
 First stall on the source-built kernel (`gf56cbb55005d`, patch present).
-Recovery log ends at the same line as always (`using secdis to decrypt spblob`,
-synthetic-password/Weaver verify after PIN entry). But this time the wedge is
-**not** the kernel SMC loop:
+The recovery log ends at the same line as always (`using secdis to decrypt
+spblob`, Weaver verify after PIN entry). But this wedge is **not** the
+kernel SMC loop:
 
-- `returned INTERRUPTED`: 0 in dmesg, 0 in logcat. `TIMED_OUT`/`ETIMEDOUT`: 0.
-  The bound provably never fired — no SMC INTERRUPTED-spin was involved.
+- `returned INTERRUPTED`: 0 in dmesg, 0 in logcat. `TIMED_OUT`/`ETIMEDOUT`:
+  0. The bound never fired. No SMC INTERRUPTED-spin was involved.
 - logcat shows `vendor.qseecomd` (pid 594, thread 608) emitting
-  `E rpmb: rpmb read operation on invalid RPMB device!!` at ~2,500/s,
-  sustained ≥15 s (12:50:48.791 → pull at 12:51:03.272, 37,759 lines). The flood
-  starts within the same second as the PIN submission; the thread was idle
-  before (previous line 12:49:43).
-- The successful session the same morning (`logcat-20261014-0803`) contains
-  zero `rpmb` lines in 28,434 lines: the invalid-device state is the anomaly,
-  not normal noise.
-- dmesg (t=0–97 s) is clean apart from the known early-boot `scm_call failed:
-  func id 0x42001907` (t=0.006 s, pre-existing, cannot be our 2 s bound) and the
-  `ds28e16` battery spam. TWRP's decrypt lines never reach logd, so logcat
-  carries no decrypt flow — only the HAL/daemon side.
+  `E rpmb: rpmb read operation on invalid RPMB device!!` at about 2,500/s.
+  The flood lasts 15 s or more (12:50:48.791 to pull at 12:51:03.272, 37,759
+  lines). It starts within the same second as the PIN entry. The thread was
+  idle before (previous line 12:49:43).
+- The good session the same morning (`logcat-20261014-0803`) has zero
+  `rpmb` lines in 28,434 lines. The invalid-device state is the anomaly. It
+  is not normal noise.
+- dmesg (t=0–97 s) is clean apart from the known early-boot `scm_call
+  failed: func id 0x42001907` (t=0.006 s, pre-existing) and the `ds28e16`
+  battery spam. The recovery decrypt lines never reach logd. logcat carries
+  no decrypt flow, only the HAL and daemon side.
 
-Reading: the Weaver verify hammers RPMB reads that fail instantly ("invalid
-device") and retries with no delay, no backoff, no give-up — a userspace
-livelock in/around qseecomd (prebuilt, no source). The kernel bound cannot
-cover this mode: nothing spins inside `__scm_call_armv8_64`. Intermittency
-(~1 in 5–10) + absence on good boots points at a boot-time readiness race
-(RPMB path invalid on some boots when the first Weaver request lands).
+Reading: the Weaver verify hammers RPMB reads that fail at once ("invalid
+device"). It retries with no delay, no backoff, no give-up. The result is a
+userspace livelock in and around qseecomd (prebuilt, no source). The kernel
+bound cannot cover this mode. Nothing spins inside `__scm_call_armv8_64`.
+Intermittency (about 1 in 5–10) with clean good boots points at a boot-time
+readiness race. On some boots the RPMB path is invalid at the first Weaver
+request lands.
 
-Consequences:
+### Confirmed live (2026-10-14 ~13:04, session stuck, no reboot yet)
 
-- The recovery-side bounded fail-loud (abort the decrypt after N s with a
-  clear message) is promoted from fallback to **primary fix candidate for this
-  mode**. The kernel bound stays for the occurrence-4 (SMC-spin) mode.
-- Whether occurrence 4's SMC spin was the same RPMB storm observed one level
-  down (each retry SMC-ing into a QTEE that answers INTERRUPTED) is unknown —
-  two signatures, possibly one root cause.
-- Next-stall capture: `adb shell top -n 1 -b | head -20` (confirm CPU burn +
-  process) and `ls /dev | grep -i rpmb` vs a good boot (missing node →
-  init-ordering fix in the tree). Testable hypothesis: waiting ~60–90 s after
-  the PIN screen appears before entering the PIN.
+- `/dev/sg0`–`sg8` are ALL present while stuck. The missing-node variant is
+  dead.
+- `/proc/594/fd` (qseecomd) holds **no sg fd**. RPMB never got acquired in
+  this boot. Other fds: ion, dmabuf, binder, many `/dev/qseecom` sessions,
+  `/dev/block/sda2`.
+- `sysfs` shows sg0/sg1/sg2 as type `0x1E` (UFS well-known LUs, LUNs
+  0xC150/0xC144/0xC130). sg3–sg8 are type 0 disks. Good boots open sg0
+  (2026-10-13 logs, t≈2.04 s) or sg1 (2026-10-14 0803, t≈2.02 s and at
+  decrypt). Acquisition runs once at qseecomd startup. What it finds (or
+  misses) stays latched for the session.
+- Gatekeeper HAL (pid 635) is one thread, `R`, wchan 0. It spins in
+  **userspace**, not in an SMC loop. Kernel dmesg has zero UFS, SCSI, and
+  sense errors. The chain is: HAL verify-retry, then TA, then RPMB request,
+  then qseecomd instant failure, then repeat. Every SMC completes. No
+  kernel-side bound can catch this, by construction.
+- Refined mechanism: one-time sg acquisition at qseecomd startup races
+  ueventd coldboot. Losing boots latch "invalid RPMB device" permanently. No
+  `rpmb_init` or `parti_cfg` lines exist in any logcat. The file
+  `/system/etc/rpmb_sec_parti.cfg` ships nowhere in the tree. `/system` was
+  mounted before the PIN attempt this session. The config path is not the
+  variable.
+- **Fix:** gate `start vendor.qseecomd` on readiness with a bounded poll
+  (`system/bin/wait_sg_rpmb.sh`: sg0+sg1+sg2 present, 100 × 0.2 s = 20 s
+  maximum, falls through to the start on timeout). Fail-loud retry stays
+  rejected: prevention only, by user decision.
+- **Dead end on record:** merely moving the start from `on init` to `on
+  boot` (shipped in R12.0_7) changed nothing. dmesg proves the sg scan at
+  t=2.054 s against 2.018 s before, because this recovery completes its
+  whole trigger cascade in about 2 s. The import chain is verified
+  (`hw/init.rc` imports `init.recovery.${ro.hardware}.rc`, our file, its
+  only definer of `vendor.qseecomd`). The edit was live but useless. The
+  poll is the actual gate.
+- Validation: later decrypts. The rate was about 1 in 5–10. A dozen clean
+  ones builds confidence. A recurrence with the new gate plus `ls /dev/sg*`
+  and fd data reopens the case and kills the startup-race reading.
 
-### Confirmed live + fix (2026-10-14 ~13:04, session still stuck, no reboot)
+## Capture recipe (SysRq for a kernel-side stall)
 
-- `/dev/sg0`–`sg8` ALL present while stuck — the missing-node variant is dead.
-- `/proc/594/fd` (qseecomd): **no sg fd held** — RPMB never acquired this boot.
-  Other fds: ion/dmabuf/binder/many `/dev/qseecom` sessions, `/dev/block/sda2`.
-- `sysfs`: sg0/sg1/sg2 are type `0x1E` (UFS well-known LUs, LUNs
-  0xC150/0xC144/0xC130); sg3–sg8 are type 0 disks. Good boots variously open
-  sg0 (2026-10-13 logs, t≈2.04 s) or sg1 (2026-10-14 0803, t≈2.02 s + at
-  decrypt) — i.e. acquisition runs once at qseecomd startup and whatever it
-  finds (or doesn't) is latched for the session.
-- Gatekeeper HAL (pid 635): single thread, `R`, wchan 0 — spinning in
-  **userspace**, not in an SMC loop. Kernel dmesg has zero UFS/SCSI/sense
-  errors. So: HAL verify-retry → TA → RPMB request → qseecomd instant-fail →
-  repeat, every SMC completing — uncatchable by any kernel-side bound, by
-  construction.
-- Refined mechanism: one-time sg acquisition at qseecomd startup races ueventd
-  coldboot; losing boots latch "invalid RPMB device" permanently. No
-  `rpmb_init`/`parti_cfg` lines in any logcat (lib doesn't log init at default
-  level); `/system/etc/rpmb_sec_parti.cfg` ships nowhere in the tree, and
-  `/system` was mounted before the PIN attempt this session, so the cfg path
-  is not the variable.
-- **Fix (prevention, per user — fail-loud explicitly rejected):**
-  `init.recovery.qcom.rc` moves `start vendor.qseecomd` from `on init` to
-  `on boot`. No hardcodes, no hang risk (`on boot` always fires), nothing
-  consumes TEE before it. Rides the next build after R12.0_6.
-- **Dead end recorded (2026-10-14 evening):** merely moving the start from
-  `on init` to `on boot` (shipped in R12.0_7) changed nothing — dmesg proves
-  the sg scan at t=2.054 s vs 2.018 s before, because this recovery's whole
-  trigger cascade completes in ~2 s. Import chain verified (`hw/init.rc` imports
-  `init.recovery.${ro.hardware}.rc`, our file, its only definer of
-  `vendor.qseecomd`), so the edit was live but useless. The bounded sg poll
-  (`wait_sg_rpmb.sh`, 20 s max, falls through) is the actual gate.
-- Validation: subsequent decrypts (rate was ~1 in 5–10; a dozen clean ones
-  builds confidence). A recurrence with the new trigger + `ls /dev/sg*` and
-  fd data would falsify the startup-race and reopen it.
-
-## Capture recipe (SysRq — reusable for any kernel-side stall)
-
-debugfs is disabled in this kernel, so SysRq is the tool. **Before rebooting**:
+debugfs is off in this kernel. SysRq is the tool. Do these steps before you
+reboot:
 
 ```sh
 echo 1 > /proc/sys/kernel/sysrq        # ensure enabled (0 disables it)
@@ -232,44 +203,47 @@ cat /proc/<pid>/stat; sleep 3; cat /proc/<pid>/stat   # utime/stime delta
 cat /proc/<pid>/task/*/stack           # full kernel stack
 ```
 
-(ftrace/tracefs is separate from debugfs and may still be mountable:
-`mount -t tracefs nodev /sys/kernel/tracing`.)
+ftrace and tracefs are separate from debugfs. The mount below can still
+work: `mount -t tracefs nodev /sys/kernel/tracing`.
 
 ## Ruled out (with evidence)
 
 - **Wrong PIN** — fails fast, never hangs.
-- **AIDL gatekeeper path** — fast-fails identically in good boots.
-- **`getService()` / service registration** — managers idle at hang time;
-  gatekeeper registered ~2 s into boot (`ro.boottime` 2.02 s vs recovery 1.99 s).
-- **Cold-boot correlation** — one hang was a warm reboot; later A/B tests gave
-  clean decrypts on cold boot, warm `Reboot→Recovery`, reboot-to-system, and
-  power-off/power-on.
-- **Flash determinism** — re-flashing the zip decrypted first try.
-- **OTG / battery-authenticator log spam / service crashes** — unrelated.
-- **Taking a screenshot before decrypting** — no relation; the log stops at the
-  same line every time. (Pre-decrypt screenshots are written into the ramdisk:
-  `/sdcard` isn't mounted yet, so the PNG's `dev="rootfs"`.)
+- **AIDL gatekeeper path** — fails fast identically in good boots.
+- **`getService()` and service registration** — managers sit idle at hang
+  time. Gatekeeper registered about 2 s into boot.
+- **Cold-boot link** — one hang was a warm reboot. Later tests gave clean
+  decrypts on cold boot, warm `Reboot→Recovery`, reboot-to-system, and
+  power-off with power-on.
+- **Flash link** — re-flashing the zip decrypted at the first try.
+- **OTG, battery-authenticator spam, and service crashes** — unrelated.
+- **Screenshot before decrypt** — no link. The log stops at the same line
+  every time. (Pre-decrypt screenshots land in the ramdisk: `/sdcard` is not
+  mounted yet, so the PNG has `dev="rootfs"`.)
 
 ## Decisions
 
-- The post-decrypt TEE-service stop is **official parity, not a fix** for this
-  — it happens *during* `verify()`, earlier. It also means any
-  Password-based re-decrypt would need the services restarted.
-- No workaround shipped while the bug was uncaptured. Occurrence 4 was met with
-  the kernel bound (later removed — wrong layer, see above); occurrence 5 is
-  met with the qseecomd late-start prevention. Fail-loud retry was explicitly
-  rejected by the user (prevention only).
+- The post-decrypt TEE-service stop is **official parity, not a fix** for
+  this. It happens *during* `verify()`, earlier. Any Password-based
+  re-decrypt needs the services restarted.
+- Occurrence 4 met the kernel bound. The bound is removed (wrong layer).
+- Occurrence 5 meets the sg-poll gate. Fail-loud retry stays rejected
+  (prevention only, by user decision).
 
 ## History
 
-- **2026-10-13 22:21 (R12.0_4) — 4th occurrence, captured.** SysRq `l`/`t` +
-  process probes pinned the spin to the unbounded `SCM_INTERRUPTED` loop in
-  `__scm_call_armv8_64` (`drivers/soc/qcom/scm.c`). A PIN-panel screenshot taken
-  right before decrypting is incidental. Same signature as Hang 3.
-- Earlier occurrences were lost to reboots before capture; a 60 s auto-reboot
-  watchdog was written then reverted (diagnose-first). Do not re-apply it.
-- Early (pre-capture) hypotheses — cold-boot race, "service registers late" — are
+- **2026-10-13 22:21 (R12.0_4) — 4th occurrence, captured.** SysRq `l`/`t`
+  with process probes pinned the spin to the unbounded `SCM_INTERRUPTED`
+  loop in `__scm_call_armv8_64` (`drivers/soc/qcom/scm.c`). A PIN-panel
+  screenshot before decrypting is incidental. Same signature as Hang 3.
+- **2026-10-14 — 5th occurrence, captured live.** qseecomd RPMB flood at
+  about 2,500/s with sg nodes present and no sg fd held. Root cause moved
+  from the kernel SMC loop to the userspace acquisition race.
+- Earlier occurrences died with reboots before capture. A 60 s auto-reboot
+  watchdog was written, then reverted (diagnose first). Do not re-apply it.
+- Early hypotheses — cold-boot race, "service registers late" — are
   **dead** (see Ruled out).
-- Official miatoll reference tree: dedicated `init.recovery.qcom_decrypt.rc` +
-  `.fbe.rc`, imports `prepdecrypt`, sets `LD_LIBRARY_PATH` on the HAL services,
-  and stops `qseecomd`/`gatekeeper`/`keymaster` on `twrp.all.users.decrypted`.
+- Official miatoll reference tree: dedicated `init.recovery.qcom_decrypt.rc`
+  with `.fbe.rc`, imports `prepdecrypt`, sets `LD_LIBRARY_PATH` on the HAL
+  services, and stops `qseecomd`/`gatekeeper`/`keymaster` on
+  `twrp.all.users.decrypted`.
