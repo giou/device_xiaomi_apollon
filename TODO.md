@@ -78,9 +78,14 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 ## Build R12.0_5 (`38482616737`, published 2026-10-14 01:48) — theme layout + corrected CE re-apply + kernel from source
 
 - [ ] `/data` unmount→remount: names readable without a reboot; log shows
-  `Reapply: rebuilding fscrypt keyring for 1 user(s)` … `Reapply: CE keys
-  restored`. (vold `74d592b` + recovery `e710f732`; R12.0_4's attempt was a
-  no-op. Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).)
+  `Reapply: rebuilding the fscrypt keyring after /data remount` → `device key
+  re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`.
+  - R12.0_5 fired the hook but could not rebuild: the device/DE/CE keys are all
+    Keymaster-wrapped and the post-decrypt TEE cleanup stops keystore
+    (`keystore2 ... DEAD_OBJECT` → `decryptWithKeystoreKey failed`). vold
+    `aaa3135` now re-installs material cached during decryption instead (no
+    keystore, no generation, no writes) - needs the next build.
+  - Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
 - [ ] Re-tick `/data` while it is already mounted → **no** re-apply, log quiet
   (`Is_Mounted()` gate).
 - [ ] Theme form fields: Verify Password, restore password prompt, Rename

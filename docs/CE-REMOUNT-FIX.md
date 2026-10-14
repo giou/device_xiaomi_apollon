@@ -17,12 +17,35 @@ reboot.
 destroys it with the mount, and stock TWRP never re-adds the CE key. The device
 choice is fine (not a raw-device fallback) — it is purely the dropped keys.
 
-## Not the TEE cleanup
-`TWPartition::UnMount` does **not** clear `Is_Decrypted`; `Mount` reuses
-`Decrypted_Block_Device`; the log shows **no** decrypt attempt after the
-remount. So the post-decrypt `stop` of qseecomd/gatekeeper/keymaster is not
-involved. (It does mean any *Password*-based re-decrypt would need those
-services back — hence the secret-based approach below.)
+## The TEE cleanup is what makes this hard
+`TWPartition::UnMount` does **not** clear `Is_Decrypted`, and `Mount` reuses
+`Decrypted_Block_Device`, so the remount itself never re-decrypts - no decrypt
+attempt appears in the log after the remount.
+
+But rebuilding the keyring means *unwrapping* keys, and on this device every one
+of them is Keymaster-wrapped (R12.0_5 logcat, first decrypt):
+
+```
+06:51:49.505 fscrypt_initialize_systemwide_keys -> Key exists, using: /data/unencrypted/key
+06:51:49.505   Retrieving key from keymaster
+06:51:49.537 fscrypt::load_all_de_keys::retrieveKey -> Retrieving key from keymaster
+06:52:24.558 Trying user CE key /data/misc/vold/user_keys/ce/0/current -> Retrieving key from keymaster
+```
+
+The post-decrypt TEE cleanup stops gatekeeper/keymaster, so keystore2 is dead for
+the rest of the session and a second unwrap cannot happen (same session, at the
+remount):
+
+```
+06:53:08.056 Retrieving key from keymaster
+06:53:08.058 keystore2: beginInternal transaction failed ... 'DEAD_OBJECT'
+06:53:08.058 decryptWithKeystoreKey failed
+```
+
+So: capture the *unwrapped* material while keystore is still alive (during
+decryption, where each key is already in hand) and re-install that on remount.
+Nothing is unwrapped twice, and the TEE services stay stopped - which is what the
+stall work wants anyway.
 
 ## R12.0_4 result — the first attempt was a no-op
 
@@ -52,19 +75,23 @@ needs the user's PIN — the device key blob sits in the **plaintext**
 1. **vold** — forked as `giou/android_system_vold` (branch **`fox_16.0-apollon`**,
    based on OrangeFox `fox_16.0` @ `953de96`; the fork's `fox_16.0` branch is kept
    pristine as an upstream mirror); direct source edits:
-   - Cache the secret inside `Decrypt_CE_storage(user_id, secret)` — captured
-     there, so **no decrypt-logic change** and it works for every path
-     (`Decrypt_User_Synth_Pass`, default-password, legacy).
-   - Export `Decrypt_Reapply_All_CE()` / `Decrypt_Forget_CE()` (`Decrypt.h`).
-     `Decrypt_Reapply_All_CE()` now does:
-     `fscrypt_initialize_systemwide_keys()` (device + per-boot key) →
-     `fscrypt_reload_de_keys()` (new: `load_all_de_keys()` minus
-     `fscrypt_init_user0()`'s create/overwrite paths, so it can never rewrite key
-     material) → per cached user, `fscrypt_lock_ce_storage()` (drops the stale
-     "unlocked" bookkeeping so the unlock really re-adds the key) →
-     `Decrypt_CE_storage()`.
-   - The builder **overrides** `system/vold` with this fork (replace-by-clone,
-     asserted on `apollon_ce_secrets` / `Decrypt_Reapply_All_CE`).
+   - Cache the **unwrapped** material at the moment each key is installed while
+     keystore is alive: the device key in `fscrypt_initialize_systemwide_keys()`,
+     each DE key in `load_all_de_keys()`, each CE key in
+     `fscrypt_unlock_ce_storage()`.
+   - `fscrypt_reinstall_cached_device_key()` /
+     `fscrypt_reinstall_cached_user_keys()` install that material with
+     `install_storage_key()` and nothing else: **no keystore**, no
+     `retrieveOrGenerateKey()` (which would generate *and write* a replacement key
+     if it could not read one), no writes at all. An empty cache fails loudly
+     rather than guessing.
+   - `fscrypt_forget_cached_keys()` wipes the material; `Decrypt_Forget_CE()`
+     calls it on Format Data, where `/data` is re-keyed.
+   - Export `Decrypt_Reapply_All_CE()` / `Decrypt_Forget_CE()` (`Decrypt.h`);
+     `Decrypt_Reapply_All_CE()` prints one breadcrumb per step, so the recovery
+     log alone says which part failed.
+   - The builder **overrides** `system/vold` with this fork (replace-by-clone) and
+     logs the commit it cloned (`Override HEAD now:` + `git log --oneline -3`).
      `Check-Upstream-Drift.yml` compares `OrangeFox/system/vold@fox_16.0` against
      the fork base (`VOLDS_BASE`) so upstream vold fixes aren't missed.
 2. **recovery fork** (`giou/Recovery`):
@@ -77,18 +104,24 @@ needs the user's PIN — the device key blob sits in the **plaintext**
    - `TWPartition::Wipe_Encryption`: `Decrypt_Forget_CE()` (secret goes stale
      once `/data` is re-keyed).
 
-## Security (as reviewed)
-Process-local only (vold code is linked into the recovery); never logged; the
-**PIN is never cached** — only the derived disk secret. Cleared on data wipe.
-Comparable to the fscrypt master-key material the kernel already retains, and
-recovery is already a root/ADB-trusted context. Keep it single-purpose.
+## Security
+Process-local only (vold code is linked into the recovery). The material is never
+written to disk and never logged - only "device key re-installed"-style
+breadcrumbs are. The **PIN is never cached**: what is held is already-unwrapped
+key material of the kind the kernel keeps in the keyring anyway, in a root/ADB-
+trusted context. It is wiped on Format Data, and this path can never take a
+generate/write branch because it only calls `install_storage_key()`.
 
 ## Verification
-1. Decrypt → `ls /data/media/0` readable and `/proc/keys` shows `fscrypt-dm-5`.
+1. Decrypt → `ls /data/media/0` readable, and `/proc/keys` has the fscrypt entries.
 2. Mount page: untick `/data`, tick `/data` → the recovery log shows
-   `Reapply: rebuilding fscrypt keyring for 1 user(s)` … `Reapply: CE keys
-   restored`; `/proc/keys` shows `fscrypt-dm-5` again and `ls /data/media/0` is
-   readable **without a reboot**.
+   `Reapply: rebuilding the fscrypt keyring after /data remount` →
+   `Reapply: device key re-installed` → `Reapply: DE/CE keys re-installed` →
+   `Reapply: keyring rebuilt`, and `ls /data/media/0` is readable **without a
+   reboot**.
 3. Mount page: tick `/data` again while it is already mounted → **no** re-apply
    (the `Is_Mounted()` gate keeps the log quiet).
-4. Format Data → cache cleared (no stale secret; decrypt again afterwards).
+4. Format Data → material cleared (decrypt again afterwards).
+5. If a step still fails, the breadcrumb names it and `adb logcat` has the
+   detail (vold's `LOG()` lines, e.g. `Failed to install fscrypt key to /data:
+   <errno>`) - that is how the R12.0_5 failure was pinned down.
