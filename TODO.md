@@ -175,8 +175,7 @@ _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch r
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
-  un-gated. The override step clones the fork as-is — no build-time rewriting
-  and no content-marker asserts; the log records the fork commit used
+  un-gated. The override step clones the fork as-is; the log records the fork commit used
   (`Override HEAD now:` + `git log --oneline -3`). Same resulting bytes as R12.0_5,
   so no device re-test is needed beyond the checklist above.
 
