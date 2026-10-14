@@ -403,7 +403,7 @@ jobs:
           - Build: logical-partition tools (official parity); Magisk 31; kernel built from source (giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon, LOS defconfig set); dtb/dtbo from LOS (same kernel commit)
           - Stall fix: qseecomd starts late (`on boot`), so its one-shot RPMB scan runs after ueventd coldboot instead of racing it (the race wedged Weaver verifies)
 
-          Full list and rationale: [FIXES.md](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/FIXES.md)
+          Full list: [README](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/README.md)
 
           ### Known issue
           - Intermittent decrypt stall (TEE/qseecom wedge). If it recurs, capture

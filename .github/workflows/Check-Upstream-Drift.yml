@@ -8,7 +8,7 @@ name: Upstream Drift Watch
 # Anchors (bump these on every kernel/blob refresh, after decrypt re-test):
 # - KERNEL_BASE: LOS kernel commit our dtb/recovery_dtbo blobs were extracted
 #   from (proven decrypting). The kernel Image itself is built from our own
-#   fork now (see FIXES.md), so drift here means the blob source moved.
+#   fork now, so drift here means the blob source moved.
 # - VENDOR_SINCE: date our recovery/root blobs were proven good.
 # Vendor queries are pinned to lineage-24.0 (what the tree consumes);
 # SPL bumps are NOT drift (2099 policy absorbs them) and are ignored here.
