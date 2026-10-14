@@ -17,9 +17,9 @@ and why), and **[docs/](docs/)** for per-issue detail dossiers.
 | Display | 6.67" 1080x2400 IPS, 144 Hz |
 | Battery | 5000 mAh |
 | OTA assert | `apollon,apollo,apollopro` |
-| Kernel | 4.19.325 (LineageOS `android_kernel_xiaomi_sm8250:lineage-24.0` boot image) |
+| Kernel | 4.19.325, built from source (`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI); `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
 
-Branch **`fox_16.0`** (default, only branch) — native Android 16 build
+Branch **`fox_16.0`** (default) — native Android 16 build
 (`fox_16.0` manifest, SDK 36).
 
 ## Build
@@ -50,7 +50,9 @@ mka adbd recoveryimage
 
 Out: `out/target/product/apollon/OrangeFox-R12.0-fox16.0-Unofficial-apollon.img`
 (`R12.0` is the OrangeFox release version, not Android; `fox16.0` is the
-manifest branch.)
+manifest branch. Published releases are titled `... (R12.0_<n>)` from
+`FOX_MAINTAINER_PATCH_VERSION` in `fox_apollon.mk` — check the recovery
+banner matches the file.)
 
 ## Notes for maintainers
 
