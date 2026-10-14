@@ -185,14 +185,12 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   asserted; details in `FIXES.md`. Shipped kernel verifies as ours:
   `Linux version 4.19.325-cip136-st20-perf-gf56cbb55005d`, `CONFIG_LTO_CLANG=y`
   + `THINLTO=y` + `CFI_CLANG=y`, `returned INTERRUPTED` present. dtb/dtbo stay
-  the LOS blobs (same kernel commit).
+  the LOS blobs (same kernel commit). (Patch `f56cbb55` reverted 2026-10-14 in `ee83446` — fork now identical to pristine; new builds lack the `returned INTERRUPTED` string but keep the source-build pipeline.)
 - [ ] **Verify the source-built kernel boots and decrypts on device** (R12.0_5):
-  banner/boot works, `/data` decrypts, behaviour unchanged apart from our patch.
-- [ ] Verify on device: an SMC-spin stall (occurrence-4 mode) must now fail
-  after ~2 s with `scm_call failed` in dmesg instead of wedging. (Occurrence 5
-  proved a second, RPMB-spin mode that the kernel bound cannot catch — see
-  `docs/DECRYPT-STALL.md`; that mode still hangs and wants the recovery-side
-  item below.)
+  banner/boot works, `/data` decrypts, behaviour unchanged (the patch era is over — reverted).
+- [x] SMC-spin backstop — dropped with the revert (user order): an
+  occurrence-4-style wedge would hang silently again. Accepted: the recurring
+  bug is the RPMB mode, covered by the init fix below.
 - [ ] Recovery-side bounded fail-loud (abort the decrypt after N s with a clear
   message) — NOT pursued: user rejected mitigation-without-prevention.
 - [x] Proper (preventive) fix for the RPMB-spin mode, confirmed live 13:04:
