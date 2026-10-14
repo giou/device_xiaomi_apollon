@@ -47,7 +47,7 @@ jobs:
           echo "" >> "${GITHUB_STEP_SUMMARY}"
 
           echo "=== kernel: ${KERNEL_BASE}...${KERNEL_BRANCH} ==="
-          curl -sfL "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/${KERNEL_BASE}...${KERNEL_BRANCH}" -o /tmp/kernel-compare.json
+          curl -sfL --retry 3 "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/${KERNEL_BASE}...${KERNEL_BRANCH}" -o /tmp/kernel-compare.json
           AHEAD=$(python3 -c "import json; print(json.load(open('/tmp/kernel-compare.json')).get('ahead_by', '?'))")
           echo "kernel commits ahead of snapshot: ${AHEAD}"
           if [[ "${AHEAD}" != "0" ]]; then
@@ -66,7 +66,7 @@ jobs:
           echo "=== vendor repos since ${VENDOR_SINCE} ==="
           for repo in proprietary_vendor_xiaomi_apollon proprietary_vendor_xiaomi_sm8250-common; do
             echo "--- TheMuppets/${repo} ---"
-            curl -sfL "https://api.github.com/repos/TheMuppets/${repo}/commits?sha=lineage-24.0&since=${VENDOR_SINCE}T00:00:00Z&per_page=20" -o "/tmp/vendor-${repo}.json"
+            curl -sfL --retry 3 "https://api.github.com/repos/TheMuppets/${repo}/commits?sha=lineage-24.0&since=${VENDOR_SINCE}T00:00:00Z&per_page=20" -o "/tmp/vendor-${repo}.json"
             N=$(python3 -c "import json; print(len(json.load(open('/tmp/vendor-${repo}.json'))))")
             echo "commits since anchor: ${N}"
             if [[ "${N}" != "0" ]]; then
@@ -85,7 +85,7 @@ jobs:
           done
 
           echo "=== system/vold (fork base vs OrangeFox upstream) ==="
-          curl -sfL "https://gitlab.com/api/v4/projects/OrangeFox%2Fsystem%2Fvold/repository/compare?from=${VOLDS_BASE}&to=fox_16.0" -o /tmp/vold-compare.json
+          curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2Fsystem%2Fvold/repository/compare?from=${VOLDS_BASE}&to=fox_16.0" -o /tmp/vold-compare.json
           VN=$(python3 -c "import json; print(len(json.load(open('/tmp/vold-compare.json')).get('commits', [])))")
           echo "system/vold commits upstream since fork base: ${VN}"
           if [[ "${VN}" != "0" ]]; then
@@ -104,7 +104,7 @@ jobs:
           fi
 
           echo "=== latest LOS nightly (info only) ==="
-          curl -sfL "https://download.lineageos.org/api/v2/devices/apollon/builds" \
+          curl -sfL --retry 3 "https://download.lineageos.org/api/v2/devices/apollon/builds" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print('latest nightly:', (d[0].get('date') if isinstance(d,list) and d else d))" \
             | tee -a "${GITHUB_STEP_SUMMARY}"
 
