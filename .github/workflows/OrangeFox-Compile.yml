@@ -70,10 +70,10 @@ jobs:
         echo "Input validation passed."
 
     - name: Clean-up
-      uses: rokibhasansagar/slimhub_actions@main
+      uses: rokibhasansagar/slimhub_actions@c2a6e4317d3de2b623ac7395b05e9d2149e8289b # main, pinned 2026-10-14
 
     - name: Swap Space
-      uses: pierotofy/set-swap-space@master
+      uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # master, pinned 2026-10-14
       with:
         swap-size-gb: 24
 
@@ -145,6 +145,8 @@ jobs:
         mkdir -p "${DEST}"
         curl -fSL --retry 3 -o "${DEST}/Magisk-v31.0.zip" \
           "https://github.com/topjohnwu/Magisk/releases/download/v31.0/Magisk-v31.0.apk"
+        # Verify the exact upstream bytes; a replaced release asset must fail, not ship.
+        echo "2c8a488b9a5293e578e95ae4f07e3c57aba4feec4a52ca4dd852a2692d6dd4e8  ${DEST}/Magisk-v31.0.zip" | sha256sum -c -
         ls -la "${DEST}"
         unzip -l "${DEST}/Magisk-v31.0.zip" | grep -E "util_functions|META-INF/com/google" | head -n 3
 
@@ -371,7 +373,7 @@ jobs:
         ls -lh "${OUT_DIR}"/OrangeFox*
 
     - name: Upload to Release
-      uses: softprops/action-gh-release@v3
+      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, pinned 2026-10-14
       with:
         files: |
           OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
