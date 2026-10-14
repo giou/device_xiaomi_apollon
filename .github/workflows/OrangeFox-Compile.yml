@@ -1,0 +1,413 @@
+name: OrangeFox - Build
+
+# Apolon-specific builder: this workflow only ever builds OrangeFox 16.0
+# recovery for Xiaomi apollon from THIS tree. No inputs - one-click run.
+#
+# Credits to:
+# https://github.com/TeamWin
+# https://gitlab.com/OrangeFox
+# https://github.com/azwhikaru for the original Recovery Builder Template
+# And all Contributors in every repositories used
+
+run-name: OrangeFox 16.0 for apollon (recovery)
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build OFR by ${{ github.actor }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 720
+    permissions:
+      contents: write
+    env:
+      MANIFEST_BRANCH: '16.0'
+      DEVICE_TREE_BRANCH: 'fox_16.0'
+      DEVICE_PATH: 'device/xiaomi/apollon'
+      DEVICE_NAME: 'apollon'
+      BUILD_TARGET: 'recovery'
+      DEVICE_TREE: 'https://github.com/giou/device_xiaomi_apollon'
+      ALLOW_MISSING_DEPENDENCIES: 'true'
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Validate config
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_TREE: ${{ env.DEVICE_TREE }}
+        DEVICE_TREE_BRANCH: ${{ env.DEVICE_TREE_BRANCH }}
+        DEVICE_PATH: ${{ env.DEVICE_PATH }}
+        DEVICE_NAME: ${{ env.DEVICE_NAME }}
+      run: |
+        set -euo pipefail
+        echo "Manifest: fox_${MANIFEST_BRANCH}"
+        echo "Device tree: ${DEVICE_TREE} @ ${DEVICE_TREE_BRANCH}"
+        echo "Device path: ${DEVICE_PATH}"
+        echo "Device: ${DEVICE_NAME}"
+
+        # Basic sanity: DEVICE_PATH must look like device/<vendor>/<codename>
+        # and must not contain '..' (path traversal).
+        if [[ "${DEVICE_PATH}" == *".."* ]]; then
+          echo "::error::DEVICE_PATH must not contain '..': ${DEVICE_PATH}"
+          exit 1
+        fi
+        if [[ "${DEVICE_PATH}" != device/*/* ]]; then
+          echo "::error::DEVICE_PATH should look like 'device/<vendor>/<codename>', got: ${DEVICE_PATH}"
+          exit 1
+        fi
+
+        # Fail fast if the device-tree repo/branch does not exist.
+        # This is the step that previously failed late with cryptic "exit code 128".
+        if ! git ls-remote --heads "${DEVICE_TREE}" "${DEVICE_TREE_BRANCH}" | grep -q .; then
+          echo "::error::Branch '${DEVICE_TREE_BRANCH}' not found in ${DEVICE_TREE}."
+          echo "Available branches:"
+          git ls-remote --heads "${DEVICE_TREE}" | awk '{print $2}' | sed 's|refs/heads/||' || true
+          echo ""
+          echo "Tree constants in this file are wrong - fix and re-run."
+          exit 1
+        fi
+        echo "Input validation passed."
+
+    - name: Clean-up
+      uses: rokibhasansagar/slimhub_actions@main
+
+    - name: Swap Space
+      uses: pierotofy/set-swap-space@master
+      with:
+        swap-size-gb: 24
+
+    - name: Build Environment
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
+        cd scripts
+        sudo bash setup/android_build_env.sh
+
+    - name: Set-up Manifest
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        GH_ACTOR: ${{ github.actor }}
+        GH_ACTOR_ID: ${{ github.actor_id }}
+      run: |
+        set -euo pipefail
+        mkdir -p "${GITHUB_WORKSPACE}/OrangeFox"
+        cd "${GITHUB_WORKSPACE}/OrangeFox"
+        git config --global user.name "${GH_ACTOR}"
+        git config --global user.email "${GH_ACTOR_ID}+${GH_ACTOR}@users.noreply.github.com"
+        git config --global --add safe.directory '*'
+        rm -rf sync
+        git clone --depth=1 https://gitlab.com/OrangeFox/sync.git -b master
+        cd sync
+        # Upstream hosts (gitlab.com, android.googlesource.com) flake with
+        # transient 503s mid-sync (killed two runs: vendor/recovery, then
+        # libbootloader). repo sync resumes partial checkouts, so re-running
+        # the script is a safe resume - retry with backoff before failing.
+        attempt=1; max_attempts=4
+        while [[ ${attempt} -le ${max_attempts} ]]; do
+          echo "Manifest sync attempt ${attempt}/${max_attempts} ..."
+          if ./orangefox_sync.sh --branch "${MANIFEST_BRANCH}" --path "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"; then
+            echo "Manifest sync succeeded on attempt ${attempt}."
+            break
+          fi
+          if [[ ${attempt} -eq ${max_attempts} ]]; then
+            echo "::error::Manifest sync failed after ${max_attempts} attempts."
+            exit 1
+          fi
+          wait_s=$((attempt * 90))
+          echo "Sync failed (likely transient 503), sleeping ${wait_s}s before retry ..."
+          sleep ${wait_s}
+          attempt=$((attempt + 1))
+        done
+
+    - name: Place Device Tree
+      run: |
+        set -euo pipefail
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        if [[ ! -d "${FOX_ROOT}" ]]; then
+          echo "::error::Manifest checkout not found at ${FOX_ROOT}. Set-up Manifest probably failed."
+          exit 1
+        fi
+        # This workflow lives in the device tree itself: copy the checked-out
+        # tree (minus git metadata) into the manifest instead of cloning it.
+        # COMMIT_ID is the exact commit this run was triggered on.
+        rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
+        mkdir -p "${FOX_ROOT}/$(dirname "${DEVICE_PATH}")"
+        cp -a "${GITHUB_WORKSPACE}/." "${FOX_ROOT}/${DEVICE_PATH}/"
+        rm -rf "${FOX_ROOT}/${DEVICE_PATH}/.git"
+        echo "COMMIT_ID=${GITHUB_SHA}" >> "${GITHUB_ENV}"
+        echo "Tree placed at ${DEVICE_PATH} from ${GITHUB_SHA} (${GITHUB_REF_NAME})"
+
+    - name: Fetch Magisk 31 addon zip
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_PATH: ${{ env.DEVICE_PATH }}
+      run: |
+        set -euo pipefail
+        DEST="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/magisk"
+        mkdir -p "${DEST}"
+        curl -fSL --retry 3 -o "${DEST}/Magisk-v31.0.zip" \
+          "https://github.com/topjohnwu/Magisk/releases/download/v31.0/Magisk-v31.0.apk"
+        ls -la "${DEST}"
+        unzip -l "${DEST}/Magisk-v31.0.zip" | grep -E "util_functions|META-INF/com/google" | head -n 3
+
+    - name: Clone TWRP dependencies
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_PATH: ${{ env.DEVICE_PATH }}
+      run: |
+        set -euo pipefail
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        cd "${FOX_ROOT}"
+        DEPS_FILE="./${DEVICE_PATH}/twrp.dependencies"
+        if [[ ! -f "${DEPS_FILE}" ]]; then
+          echo "No twrp.dependencies, skipping."
+          exit 0
+        fi
+        python3 - "${DEPS_FILE}" <<'EOF'
+        import json, os, subprocess, sys
+        REMOTES = {
+          "github": "https://github.com",
+          "gitlab": "https://gitlab.com",
+          "LineageOS": "https://github.com/LineageOS",
+          "OrangeFox": "https://gitlab.com/OrangeFox",
+          "TeamWin": "https://github.com/TeamWin",
+        }
+        deps = json.load(open(sys.argv[1]))
+        for d in deps:
+          remote = d["remote"]
+          base = REMOTES.get(remote, remote)
+          url = base.rstrip("/") + "/" + d["repository"]
+          if not url.endswith(".git"):
+            url += ".git"
+          path, branch = d["target_path"], d.get("branch", "master")
+          if os.path.exists(path):
+            print(f"Removing pre-existing {path} ...")
+            subprocess.run(["rm", "-rf", path], check=True)
+          os.makedirs(os.path.dirname(path), exist_ok=True)
+          print(f"Cloning {url} (branch: {branch}) into {path} ...")
+          subprocess.run(["git", "clone", "--depth=1", "--single-branch",
+                          "--branch", branch, url, path], check=True)
+        print("TWRP dependencies cloned.")
+        EOF
+
+    - name: Override forked sources (vold, bootable/recovery)
+      # Our forks replace the synced copies wholesale: deterministic, shallow,
+      # auditable, and nothing re-syncs afterwards so .repo staleness is
+      # harmless. system/vold carries the CE re-apply change (fscrypt's
+      # per-superblock keyring dies with the /data mount -> ciphertext names on
+      # remount); bootable/recovery carries the apollon fixes.
+      # Entry format: <tree path>|<repo>|<branch>
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+      run: |
+        set -euo pipefail
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        cd "${FOX_ROOT}"
+        while IFS='|' read -r dir repo branch; do
+          [[ -n "${dir}" ]] || continue
+          if [[ ! -d "${dir}" ]]; then
+            echo "::error::${dir} missing after sync - manifest layout changed, review manually."
+            exit 1
+          fi
+          echo "${dir}: upstream HEAD before override:"
+          git -C "${dir}" rev-parse HEAD
+          rm -rf "${dir}"
+          git clone --depth=1 --single-branch --branch "${branch}" "${repo}" "${dir}"
+          echo "${dir}: override HEAD now:"
+          git -C "${dir}" rev-parse HEAD
+          git -C "${dir}" log --oneline -3
+        done <<'EOF'
+        system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
+        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon
+        EOF
+
+    - name: Build the kernel from the apollon fork
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_PATH: ${{ env.DEVICE_PATH }}
+      run: |
+        set -eo pipefail
+        echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        KERNEL_REPO="https://github.com/giou/android_kernel_xiaomi_sm8250"
+        KERNEL_BRANCH="lineage-24.0-apollon"
+        KSRC="${RUNNER_TEMP}/kernel-src"
+
+        # kernel build deps the runner image does not ship
+        sudo apt-get install -y -qq flex bison bc libssl-dev >/dev/null
+
+        rm -rf "${KSRC}"
+        git clone --depth=1 --single-branch --branch "${KERNEL_BRANCH}" \
+          "${KERNEL_REPO}" "${KSRC}"
+        cd "${KSRC}"
+
+        CLANG_DIR="${FOX_ROOT}/prebuilts/clang/host/linux-x86/clang-r547379"
+        if [ ! -x "${CLANG_DIR}/bin/clang" ]; then
+          echo "::error::clang-r547379 not found at ${CLANG_DIR} - tree toolchain changed, review manually."
+          exit 1
+        fi
+        export PATH="${CLANG_DIR}/bin:${PATH}"
+        clang --version | head -n 1
+
+        # LineageOS's config set for apollon: the three entries in
+        # sm8250-common's BoardConfigCommon.mk, plus the fragment apollon's
+        # BoardConfig appends. That last one carries the Xiaomi board symbol,
+        # which is what supplies the touchscreen driver recovery needs.
+        #
+        # LLVM=1 belongs on the config phase too, not only on the Image build:
+        # LTO_CLANG and CFI_CLANG depend on CC_IS_CLANG && LD_IS_LLD, so a
+        # config phase run without it silently drops both and we would ship a
+        # non-LTO, non-CFI kernel instead of LOS's.
+        make -s O=out ARCH=arm64 LLVM=1 vendor/kona-perf_defconfig
+        scripts/kconfig/merge_config.sh -m -O out out/.config \
+          arch/arm64/configs/vendor/debugfs.config \
+          arch/arm64/configs/vendor/xiaomi/sm8250-common.config \
+          arch/arm64/configs/vendor/xiaomi/apollo.config >/dev/null
+        make -s O=out ARCH=arm64 LLVM=1 olddefconfig
+
+        # Fail loud on symbols a wrong config set would silently lose.
+        grep -E "^CONFIG_(LTO_NONE|LTO_CLANG|THINLTO|CFI_CLANG)" out/.config
+        for sym in MACH_XIAOMI_APOLLO MACH_XIAOMI_SM8250 \
+                   TOUCHSCREEN_NT36xxx_HOSTDL_SPI LTO_CLANG CFI_CLANG; do
+          grep -q "^CONFIG_${sym}=y" out/.config \
+            || { echo "::error::CONFIG_${sym} missing from the merged config - wrong fragments, review manually."; exit 1; }
+        done
+
+        make O=out ARCH=arm64 LLVM=1 -j"$(nproc)" Image
+
+        strings out/arch/arm64/boot/Image | grep -m1 "Linux version" || true
+
+        install -m 644 out/arch/arm64/boot/Image \
+          "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel"
+        ls -l "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel"
+        echo "kernel built from ${KERNEL_REPO}@${KERNEL_BRANCH}, installed over the prebuilt"
+
+        # Free the kernel workspace before the platform build (1.5G source + out/):
+        # the two memory peaks stay sequential, and so do the disk peaks.
+        du -sh "${KSRC}" 2>/dev/null || true
+        rm -rf "${KSRC}"
+        df -h "${GITHUB_WORKSPACE}" | tail -n 1
+
+    - name: Building OrangeFox
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_NAME: ${{ env.DEVICE_NAME }}
+        BUILD_TARGET: ${{ env.BUILD_TARGET }}
+        # Absolute path to the Magisk 31 addon zip fetched above. Env beats
+        # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
+        FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
+        # Tree-mk FOX_ vars don't reliably reach the vendor packaging script
+        # (v11: Magisk override via env worked, AromaFM drop via tree did not),
+        # so pass this one through the same proven env channel.
+        FOX_DELETE_AROMAFM: '1'
+      run: |
+        # NOTE: Do NOT use `set -u` here - AOSP build/envsetup.sh is not
+        # nounset-clean (references $TOP, $ZSH_VERSION unbound) and fails
+        # immediately under `set -u` with "TOP: unbound variable".
+        set -eo pipefail
+        echo "runner parallelism: $(nproc) available CPUs; mka uses the tree's default job count (the CPU count)"
+        cd "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        set +e +u
+        set +o pipefail
+        # shellcheck disable=SC1091
+        source build/envsetup.sh
+        set -e
+        # 16.0 is the only manifest this builder supports; it needs the
+        # release-qualified combo: bp2a for the android-16.0.0 base.
+        lunch "twrp_${DEVICE_NAME}-bp2a-eng"
+        mka adbd "${BUILD_TARGET}image"
+
+    - name: Diagnose build failure
+      # Failure-only observability: disk/memory + tool provenance for the next
+      # triage. Cheap, runs only when a build step fails.
+      if: failure()
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+      run: |
+        echo "=== disk ==="; df -h / || true
+        echo "=== memory ==="; free -h || true
+        echo "=== cp ==="; which cp || true; cp --version 2>&1 | head -n 1 || true
+        echo "=== out/error.log (if present) ==="
+        tail -n 30 "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/error.log" 2>/dev/null || echo "(no out/error.log)"
+
+    - name: Set Release Properties
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_TREE: ${{ env.DEVICE_TREE }}
+        DEVICE_PATH: ${{ env.DEVICE_PATH }}
+      run: |
+        set -euo pipefail
+        echo "BUILD_DATE=$(TZ=Asia/Manila date +%Y%m%d)" >> "${GITHUB_ENV}"
+        DEVICE_TREE_URL="${DEVICE_TREE}"
+        if [[ "${DEVICE_TREE_URL}" == *.git ]]; then
+          DEVICE_TREE_URL="${DEVICE_TREE_URL%.git}"
+        fi
+        echo "DEVICE_TREE_URL=${DEVICE_TREE_URL}" >> "${GITHUB_ENV}"
+
+        # The tree's patch version is what the recovery banner shows as
+        # R12.0_<n>. Two builds on one day otherwise get identical release
+        # titles and identical asset names, which is how the previous build
+        # got flashed by mistake.
+        FOX_MK=$(ls "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}"/fox_*.mk 2>/dev/null | head -n 1 || true)
+        FOX_BUILD=$(grep -m1 -oE 'FOX_MAINTAINER_PATCH_VERSION[[:space:]]*:=[[:space:]]*[0-9]+' "${FOX_MK:-/dev/null}" 2>/dev/null | grep -oE '[0-9]+$' || true)
+        echo "BUILD_VER=${FOX_BUILD:-0}" >> "${GITHUB_ENV}"
+        echo "Recovery banner will read: R12.0_${FOX_BUILD:-0}"
+
+        if [ -z "${FOX_BUILD}" ]; then
+          echo "::warning::could not read FOX_MAINTAINER_PATCH_VERSION from ${DEVICE_PATH}/fox_*.mk - the release title will not carry a build number."
+        fi
+
+    - name: Check build outputs
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_NAME: ${{ env.DEVICE_NAME }}
+      run: |
+        set -euo pipefail
+        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        echo "Listing ${OUT_DIR} ..."
+        ls -lh "${OUT_DIR}" || { echo "::error::Output directory not found: ${OUT_DIR}"; exit 1; }
+        if ! compgen -G "${OUT_DIR}/OrangeFox*.img" > /dev/null && ! compgen -G "${OUT_DIR}/OrangeFox*.zip" > /dev/null; then
+          echo "::error::No OrangeFox*.img or OrangeFox*.zip found in ${OUT_DIR} - build probably failed."
+          exit 1
+        fi
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v3
+      with:
+        files: |
+          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
+          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip
+        name: OrangeFox Recovery for ${{ env.DEVICE_NAME }} // ${{ env.BUILD_DATE }} (R12.0_${{ env.BUILD_VER }})
+        tag_name: ${{ github.run_id }}
+        fail_on_unmatched_files: true
+        body: |
+          ## OrangeFox Recovery Build - Unofficial
+          Banner: `R12.0_${{ env.BUILD_VER }}` - check the recovery UI (or the first line of its log) matches this file.
+          Build: fox_${{ env.MANIFEST_BRANCH }}
+          Device: [Device Tree/Branch](${{ env.DEVICE_TREE_URL }}/tree/${{ env.DEVICE_TREE_BRANCH }})
+          Commit: Most recent [commit](${{ env.DEVICE_TREE_URL }}/commit/${{ env.COMMIT_ID }}) during building.
+
+          ### What this fork changes (vs stock OrangeFox)
+          - Decrypt: LOS 24 FBEv1; TEE services stopped after decrypt; CE keys re-applied on /data remount
+          - USB/OTG: plug-event automount, candidate iteration, MTP restore on failure, /usb_otg mount point
+          - MTP: dates now shown in Windows; single storage entry
+          - Backups: encrypted backups enabled; /storage source; backup-encryption prompt layout
+          - Build: logical-partition tools (official parity); Magisk 31; kernel built from source (giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon, LOS defconfig set); dtb/dtbo from LOS (same kernel commit)
+          - Stall fix: qseecomd starts late (`on boot`), so its one-shot RPMB scan runs after ueventd coldboot instead of racing it (the race wedged Weaver verifies)
+
+          Full list and rationale: [FIXES.md](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/FIXES.md)
+
+          ### Known issue
+          - Intermittent decrypt stall (TEE/qseecom wedge). If it recurs, capture
+            `adb shell ls /dev/sg*` plus the qseecomd fd list before rebooting -
+            that pair decides the case. The secure-world state may still need a
+            reboot to clear.
+            See [docs/DECRYPT-STALL.md](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/docs/DECRYPT-STALL.md)
