@@ -86,23 +86,40 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
     `aaa3135` now re-installs material cached during decryption instead (no
     keystore, no generation, no writes) - needs the next build.
   - Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
-- [ ] Re-tick `/data` while it is already mounted → **no** re-apply, log quiet
-  (`Is_Mounted()` gate).
-- [ ] Theme form fields: Verify Password, restore password prompt, Rename
+- [ ] **No spurious re-apply while `/data` stays mounted** (`Is_Mounted()` gate).
+  There is no manual gesture for this - the recovery itself calls
+  `Mount_By_Path("/data")` on its own (after decrypt, on page loads such as
+  opening the File Manager).  Practical check: decrypt, then open the File
+  Manager, return to Mount, open Settings, and grep the log for `Reapply:` -
+  expect **none**.  Only a genuine untick→tick transition may fire it.
+- [x] Theme form fields: Verify Password, restore password prompt, Rename
   backup, file rename/chmod, Time offset — caption/input/underline all at x=48,
   underline ending at 1032 (no clipping). (`c2165eef`, `7134e101`.)
-- [ ] Info-icon gap: PIN decrypt screen ("Data Partition is encrypted") and the
+  **Verified on device 2026-10-14 (R12.0_5).**
+- [x] Info-icon gap: PIN decrypt screen ("Data Partition is encrypted") and the
   restore prompt — text snug after the icon (136) instead of 216.
-- [ ] Failure-text spacing uniform: wrong password on Set Password / the PIN
-  decrypt screen → the red text sits ~30px below the red underline, matching
-  Rename backup. (`5faba288`.)
+  **Verified on device 2026-10-14 (R12.0_5).**
+- [x] Failure-text spacing uniform: wrong password on Set Password / the PIN
+  decrypt screen → the red text sits ~27px below the red underline, matching
+  Rename backup. (`5faba288`.)  **Verified on device 2026-10-14 (R12.0_5).**
 - [x] Version banner reads `R12.0_5` (confirmed in the published image).
-- [x] Verified in the published artifact (not yet on device): banner `R12.0_5`;
+- [x] Verified in the published artifact (R12.0_5's image): banner `R12.0_5`;
   `col1_x_icon_text` = 136 and nine `below:idfail_*` anchors in the theme; CE
   re-apply strings (`rebuilding fscrypt keyring`, `CE keys restored`,
-  `fscrypt_reload_de_keys`) and `libopenaes` in the ramdisk.
-- [ ] Carried over, still untested: encrypted-backup lock icon, LOS zip flash,
-  sideload without the treble check, English-only UI / touch sanity.
+  `fscrypt_reload_de_keys`) and `libopenaes` in the ramdisk.  The strings change
+  in the next build: the re-apply now prints `rebuilding the fscrypt keyring
+  after /data remount` → `device key (re-)installed` → `DE/CE keys …` →
+  `keyring rebuilt`.
+- [x] Encrypted-backup lock icon present, and the restore prompt's `(i)` sits
+  like it does elsewhere.  **Verified on device 2026-10-14 (R12.0_5).**
+- [ ] LOS zip flash with patching skipped, and **sideload without the treble
+  check** - use the LineageOS nightly zip you would install normally (that is
+  the file whose treble path is in question: OF detects it via `vendor.new.dat`
+  in `orangefox.cpp`).  Sideloading the OrangeFox recovery zip would exercise
+  only the transport, not the check.  `OF_NO_TREBLE_COMPATIBILITY_CHECK` was
+  dropped in the minimal-delta pass as a default - if the installer does
+  complain, re-add it (the mk comment says "re-add on evidence").
+- [ ] English-only UI, default icon layout, touch sanity.
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
