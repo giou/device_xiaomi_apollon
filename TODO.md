@@ -83,7 +83,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   no `returned INTERRUPTED` string in the image (patch gone by design).
 - [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
   recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
-- [ ] Release title carries `(R12.0_7)`.
+- [x] Release title carries `(R12.0_7)` (confirmed: `OrangeFox Recovery for apollon // 20261014 (R12.0_7)`).
 - [ ] Remount with vold v3 (`2728d08`): untick→tick shows `rebuilding…` →
   `device key re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`,
   `/data/media/0` readable without reboot.
