@@ -50,7 +50,7 @@
 - [x] Encrypted-backup **restore prompt** (verified on R12.0_5 — see R12.0_5 section): the `(i)` icon no longer overlaps the text. Superseded the one-page `993eb7ff` (reverted) — now done theme-wide in R12.0_5 (`c2165eef`, info text at `%col1_x_icon_text%`); verify on device.
 - [x] Version banner reads `R12.0_4` (confirmed in the published image)
 - [x] `Decrypt.cpp` compiles (host + arm), `libvold` builds, CE symbols linked into the recovery (confirmed in build log + image)
-- [ ] Carried over, still untested: default-English layout / touch sanity (LOS flash + sideload verified on R12.0_5 — see below)
+- [x] Carried over: LOS flash + sideload verified on R12.0_5 (see below); layout/touch is the v18 item above (single copy, no duplicates)
 
 ### `/data` remount → ❌ still broken on R12.0_4 (diagnosed, re-fixed, not yet built)
 
@@ -203,8 +203,7 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 - [x] SMC-spin backstop — dropped with the revert (user order): an
   occurrence-4-style wedge would hang silently again. Accepted: the recurring
   bug is the RPMB mode, covered by the init fix below.
-- [ ] Recovery-side bounded fail-loud (abort the decrypt after N s with a clear
-  message) — NOT pursued: user rejected mitigation-without-prevention.
+- [x] Recovery-side bounded fail-loud — REJECTED, not pursued: user rejected mitigation-without-prevention (prevention via late-start instead).
 - [x] Proper (preventive) fix for the RPMB-spin mode, confirmed live 13:04:
   qseecomd's librpmb acquires `/dev/sg*` once at startup and never recovers;
   `start vendor.qseecomd` moved from `on init` to `on boot` in
