@@ -164,9 +164,9 @@ Repos involved:
     `MACH_XIAOMI_APOLLO`, `MACH_XIAOMI_SM8250`,
     `TOUCHSCREEN_NT36xxx_HOSTDL_SPI`, `LTO_CLANG` and `CFI_CLANG` set, and the
     built image must contain the patch's log string (`returned INTERRUPTED`).
-- **`SCM_INTERRUPTED` retry bound — REVERTED 2026-10-14.** `drivers/soc/qcom/scm.c`
-  carried a 2 s / 1e6-retry bound (`f56cbb55`, reverted in `ee83446`) while the
-  occurrence-4 SMC-spin was thought to be the bug. Occurrence 5 proved the
+- **`SCM_INTERRUPTED` retry bound — REMOVED 2026-10-14.** `drivers/soc/qcom/scm.c`
+  carried a 2 s / 1e6-retry bound (`f56cbb55`) while the occurrence-4 SMC-spin
+  was thought to be the bug. Occurrence 5 proved the
   recurring stall is a userspace RPMB livelock whose SMCs all complete, which
   no SMC-level bound can catch — and the user ordered the patch out. Both
   commits are gone from the branch (reset to pristine 2026-10-14; the attempt

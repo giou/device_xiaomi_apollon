@@ -248,10 +248,10 @@ cat /proc/<pid>/task/*/stack           # full kernel stack
 - The post-decrypt TEE-service stop (see `FIXES.md`) is **official parity, not a
   fix** for this — it happens *during* `verify()`, earlier. It also means any
   Password-based re-decrypt would need the services restarted.
-- No workaround shipped while the bug was uncaptured. It is now captured; the
-  kernel patch above covers the SMC-spin mode (occurrence 4), the recovery-side
-  fail-loud is the primary candidate for the RPMB-spin mode (occurrence 5) —
-  user's call.
+- No workaround shipped while the bug was uncaptured. Occurrence 4 was met with
+  the kernel bound (later removed — wrong layer, see above); occurrence 5 is
+  met with the qseecomd late-start prevention. Fail-loud retry was explicitly
+  rejected by the user (prevention only).
 
 ## History
 
