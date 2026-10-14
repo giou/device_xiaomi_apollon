@@ -381,24 +381,20 @@ jobs:
         fail_on_unmatched_files: true
         body: |
           ## OrangeFox Recovery Build - Unofficial
-          Banner: `R12.0_${{ env.BUILD_VER }}` - check the recovery UI (or the first line of its log) matches this file.
+          Banner: `R12.0_${{ env.BUILD_VER }}`. The recovery UI (or the first line of its log) must show this version.
           Build: fox_${{ env.MANIFEST_BRANCH }}
           Device: [Device Tree/Branch](${{ env.DEVICE_TREE_URL }}/tree/${{ env.DEVICE_TREE_BRANCH }})
-          Commit: Most recent [commit](${{ env.DEVICE_TREE_URL }}/commit/${{ env.COMMIT_ID }}) during building.
+          Built from commit [${{ env.COMMIT_ID }}](${{ env.DEVICE_TREE_URL }}/commit/${{ env.COMMIT_ID }}).
 
           ### What this fork changes (vs stock OrangeFox)
-          - Decrypt: LOS 24 FBEv1; TEE services stopped after decrypt; CE keys re-applied on /data remount
-          - USB/OTG: plug-event automount, candidate iteration, MTP restore on failure, /usb_otg mount point
-          - MTP: dates now shown in Windows; single storage entry
-          - Backups: encrypted backups enabled; /storage source; backup-encryption prompt layout
-          - Build: logical-partition tools (official parity); Magisk 31; kernel built from source (giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon, LOS defconfig set); dtb/dtbo from LOS (same kernel commit)
-          - Stall fix: qseecomd starts late (`on boot`), so its one-shot RPMB scan runs after ueventd coldboot instead of racing it (the race wedged Weaver verifies)
-
-          Full list: [README](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/README.md)
+          - Decrypt: LOS 24 FBEv1, TEE cleanup after decrypt, readable file names after `/data` remount
+          - Stall prevention: TEE start waits for storage readiness (bounded poll)
+          - USB/OTG: automatic mount on plug-in, MTP restored on failure
+          - MTP: correct dates in Windows
+          - Backups: encrypted backups enabled
+          - Build: logical partition tools, Magisk 31, source-built kernel (LOS config), boot blobs from LOS
+          - Full list: [README](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/README.md)
 
           ### Known issue
-          - Intermittent decrypt stall (TEE/qseecom wedge). If it recurs, capture
-            `adb shell ls /dev/sg*` plus the qseecomd fd list before rebooting -
-            that pair decides the case. The secure-world state may still need a
-            reboot to clear.
+          - Intermittent decrypt stall. If it recurs, run `adb shell ls /dev/sg*` and pull the qseecomd fd list before you reboot. That pair decides the case. A reboot can still clear the secure-world state.
             See [docs/DECRYPT-STALL.md](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/docs/DECRYPT-STALL.md)
