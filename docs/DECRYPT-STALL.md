@@ -178,6 +178,35 @@ Consequences:
   init-ordering fix in the tree). Testable hypothesis: waiting ~60–90 s after
   the PIN screen appears before entering the PIN.
 
+### Confirmed live + fix (2026-10-14 ~13:04, session still stuck, no reboot)
+
+- `/dev/sg0`–`sg8` ALL present while stuck — the missing-node variant is dead.
+- `/proc/594/fd` (qseecomd): **no sg fd held** — RPMB never acquired this boot.
+  Other fds: ion/dmabuf/binder/many `/dev/qseecom` sessions, `/dev/block/sda2`.
+- `sysfs`: sg0/sg1/sg2 are type `0x1E` (UFS well-known LUs, LUNs
+  0xC150/0xC144/0xC130); sg3–sg8 are type 0 disks. Good boots variously open
+  sg0 (2026-10-13 logs, t≈2.04 s) or sg1 (2026-10-14 0803, t≈2.02 s + at
+  decrypt) — i.e. acquisition runs once at qseecomd startup and whatever it
+  finds (or doesn't) is latched for the session.
+- Gatekeeper HAL (pid 635): single thread, `R`, wchan 0 — spinning in
+  **userspace**, not in an SMC loop. Kernel dmesg has zero UFS/SCSI/sense
+  errors. So: HAL verify-retry → TA → RPMB request → qseecomd instant-fail →
+  repeat, every SMC completing — uncatchable by any kernel-side bound, by
+  construction.
+- Refined mechanism: one-time sg acquisition at qseecomd startup races ueventd
+  coldboot; losing boots latch "invalid RPMB device" permanently. No
+  `rpmb_init`/`parti_cfg` lines in any logcat (lib doesn't log init at default
+  level); `/system/etc/rpmb_sec_parti.cfg` ships nowhere in the tree, and
+  `/system` was mounted before the PIN attempt this session, so the cfg path
+  is not the variable.
+- **Fix (prevention, per user — fail-loud explicitly rejected):**
+  `init.recovery.qcom.rc` moves `start vendor.qseecomd` from `on init` to
+  `on boot`. No hardcodes, no hang risk (`on boot` always fires), nothing
+  consumes TEE before it. Rides the next build after R12.0_6.
+- Validation: subsequent decrypts (rate was ~1 in 5–10; a dozen clean ones
+  builds confidence). A recurrence with the new trigger + `ls /dev/sg*` and
+  fd data would falsify the startup-race and reopen it.
+
 ## Capture recipe (SysRq — reusable for any kernel-side stall)
 
 debugfs is disabled in this kernel, so SysRq is the tool. **Before rebooting**:

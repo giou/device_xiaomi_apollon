@@ -194,9 +194,13 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   `docs/DECRYPT-STALL.md`; that mode still hangs and wants the recovery-side
   item below.)
 - [ ] Recovery-side bounded fail-loud (abort the decrypt after N s with a clear
-  message) — promoted from fallback to primary candidate for the RPMB-spin
-  mode, where qseecomd retries invalid-RPMB reads forever (37,759 identical
-  errors in 15 s on 2026-10-14).
+  message) — NOT pursued: user rejected mitigation-without-prevention.
+- [x] Proper (preventive) fix for the RPMB-spin mode, confirmed live 13:04:
+  qseecomd's librpmb acquires `/dev/sg*` once at startup and never recovers;
+  `start vendor.qseecomd` moved from `on init` to `on boot` in
+  `init.recovery.qcom.rc` so acquisition runs after ueventd coldboot drains.
+  Rides the next build after R12.0_6; validate over subsequent decrypts
+  (recurrence + `ls /dev/sg*`/fd data would falsify).
 - [ ] Low priority, noted from the same logs: a screenshot taken **before**
   `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
