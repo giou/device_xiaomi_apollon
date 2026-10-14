@@ -80,7 +80,7 @@ transition.
 - [ ] Boot time not regressed (poll returns instantly on normal boots; the 20 s bound only fires on broken UFS).
 - [x] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin` (with kmsg lines), `on boot` runs exec-then-start in the shipped init rc (verified in image).
 - [ ] Stall-rate validation over subsequent decrypts (the statistical proof; a recurrence with `ls /dev/sg*` reopens the case).
-- [x] Release title carries `(R12.0_8)` (confirmed: `OrangeFox Recovery for apollon // 20261015 (R12.0_8)`, upstream asset names).
+- [x] Release title carries `(R12.0_8)` (confirmed: `OrangeFox Recovery for apollon // 20261015 (R12.0_8)`, upstream asset names). Assets carry the tag from the next run on (`OrangeFox-R12.0_8-Unofficial-apollon.*` via the rename step).
 
 ## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 

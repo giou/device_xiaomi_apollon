@@ -379,6 +379,41 @@ jobs:
           exit 1
         fi
 
+    - name: Rename assets with maintainer tag
+      # Maintainer patch version rides the banner (R12.0_<n>) and the release
+      # title, but the vendor packaging script names the files without it
+      # (OrangeFox-R12.0-Unofficial-apollon.*). Rename so the files carry it:
+      # OrangeFox-R12.0_<n>-Unofficial-apollon.*. Fail loud on unexpected names.
+      env:
+        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
+        DEVICE_NAME: ${{ env.DEVICE_NAME }}
+        BUILD_VER: ${{ env.BUILD_VER }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${BUILD_VER:-}" || "${BUILD_VER}" == "0" ]]; then
+          echo "::error::BUILD_VER missing - Set Release Properties did not read FOX_MAINTAINER_PATCH_VERSION."
+          exit 1
+        fi
+        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        renamed=0
+        for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
+          [[ -e "${f}" ]] || continue
+          base="$(basename "${f}")"
+          if [[ "${base}" != OrangeFox-R12.0-Unofficial-* ]]; then
+            echo "::error::Unexpected asset name '${base}' - vendor naming changed, review manually."
+            exit 1
+          fi
+          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${base#OrangeFox-R12.0-Unofficial-}"
+          mv "${f}" "${OUT_DIR}/${new}"
+          echo "${base} -> ${new}"
+          renamed=$((renamed + 1))
+        done
+        if [[ "${renamed}" -eq 0 ]]; then
+          echo "::error::No OrangeFox assets found to rename in ${OUT_DIR}."
+          exit 1
+        fi
+        ls -lh "${OUT_DIR}"/OrangeFox*
+
     - name: Upload to Release
       uses: softprops/action-gh-release@v3
       with:
