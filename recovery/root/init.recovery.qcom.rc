@@ -52,17 +52,21 @@ on fs
     insmod /vendor/lib/modules/exfat_miui.ko
     install_keyring
 
-# qseecomd deliberately starts LATE (decrypt-stall prevention, occurrence 5):
-# its librpmb acquires /dev/sg* ONCE at startup and never recovers if the scan
-# finds nothing, and on some boots ueventd coldboot hasn't created the sg nodes
-# yet at `on init` time (~2 s; ueventd itself starts ~1.8 s and is still
-# processing seconds later). The first Weaver verify then livelocks in both
+# qseecomd must start only AFTER the UFS RPMB sg nodes exist (decrypt-stall
+# prevention, occurrence 5): its librpmb acquires /dev/sg* ONCE at startup and
+# never recovers if the scan finds nothing, and on some boots ueventd coldboot
+# hasn't created the nodes yet. The first Weaver verify then livelocks in both
 # the gatekeeper HAL (userspace retry, ~85 % CPU) and qseecomd's RPMB thread
 # (~2.5k "invalid RPMB device" errors/s), with every SMC completing normally —
-# so no kernel bound can catch it. `on boot` fires after coldboot has drained,
-# still long before any PIN entry; keymaster/gatekeeper follow automatically
-# via vendor.sys.listeners.registered. Nothing consumes TEE earlier.
+# so no kernel bound can catch it. Trigger tricks alone do NOT work: `on boot`
+# fires ~2 s in this recovery, 36 ms after the old `on init` start (proven on
+# R12.0_7: sg scan at t=2.054 s vs 2.018 s before). So gate on readiness with
+# a bounded poll below instead. Timeout falls through to the start (today's
+# behavior, never worse, never hangs boot). Keymaster/gatekeeper follow
+# automatically via vendor.sys.listeners.registered. Nothing consumes TEE
+# earlier than decrypt, which is minutes out.
 on boot
+    exec /system/bin/sh /system/bin/wait_sg_rpmb.sh
     start vendor.qseecomd
 
 on boot
