@@ -40,7 +40,7 @@
 
 - [x] MTP date column in Windows (fork `bc6516b2`) — verified
 - [x] LP tools usable in the terminal (`lptools` installed — confirmed)
-- [x] TEE cleanup: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); no in-session re-decrypt path exists (a `/data` remount reuses the decrypted device — see `docs/CE-REMOUNT-FIX.md`), so no regression observed. A future Password-based re-decrypt would need the services restarted; none exists today.
+- [x] TEE cleanup: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); no in-session re-decrypt path exists (a `/data` remount rebuilds the keyring without re-decrypting), so no regression observed. A future Password-based re-decrypt would need the services restarted; none exists today.
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
 
@@ -65,7 +65,7 @@ the **DE keys**. Re-installing CE alone can never work.
 Re-fixed (pending build): vold rebuilds the keyring the way boot does (device key
 → on-disk DE keys → cached CE secret; no PIN needed, and the new DE reloader can
 never rewrite key material), and the recovery hook only arms on a real mount
-transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
+transition.
 
 ## Retired
 
@@ -109,7 +109,7 @@ _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch r
     service error `-1000` → v2 cached the *raw* key but every reinstall
     re-exports via dead keystore. Fixed in vold `2728d08` (cache installed
     bytes, `installKey` directly); retest moved to the R12.0_7 retry below
-    (carries vold `2728d08`). See `docs/CE-REMOUNT-FIX.md`.
+    (carries vold `2728d08`).
 - [x] Settings > Regional > Language lists the four extras (Spanish, Hungarian,
   Simplified and Traditional Chinese) and CJK text renders.  **Verified on
   device 2026-10-14 (R12.0_6).**
@@ -125,7 +125,7 @@ _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch r
     (`keystore2 ... DEAD_OBJECT` → `decryptWithKeystoreKey failed`). vold
     `aaa3135` now re-installs material cached during decryption instead (no
     keystore, no generation, no writes) - needs the next build.
-  - Verify per [`docs/CE-REMOUNT-FIX.md`](docs/CE-REMOUNT-FIX.md).
+
 - [x] **No spurious re-apply while `/data` stays mounted** (`Is_Mounted()` gate).
   Proven from logs already in hand: R12.0_4's `install.log` shows the *ungated*
   hook firing on the recovery's own `Mount_By_Path("/data")` right after decrypt
@@ -209,7 +209,7 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   `LLVM=1`, and installed it over `prebuilt/apollon/kernel`. First attempt
   exposed two silent-loss bugs (missing device fragment → no Xiaomi board/touch;
   config phase without `LLVM=1` → `CONFIG_LTO_NONE`), both fixed and now
-  asserted; details in `FIXES.md`. Shipped kernel verifies as ours:
+  asserted. Shipped kernel verifies as ours:
   `Linux version 4.19.325-cip136-st20-perf-gf56cbb55005d`, `CONFIG_LTO_CLANG=y`
   + `THINLTO=y` + `CFI_CLANG=y`, `returned INTERRUPTED` present. dtb/dtbo stay
   the LOS blobs (same kernel commit). (Patch `f56cbb55` removed from the branch 2026-10-14 — fork identical to pristine; new builds lack the `returned INTERRUPTED` string but keep the source-build pipeline.)

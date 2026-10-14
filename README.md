@@ -4,8 +4,33 @@ Recovery device tree targeting **official LineageOS 24 (Android 17)** with
 working data decryption (FBEv1 + metadata wrappedkey). Still works on
 LineageOS 23.2 (same FBEv1 policy; the OS-version pin satisfies both).
 
-See **[FIXES.md](FIXES.md)** for the full delta vs stock OrangeFox (what changed
-and why), and **[docs/](docs/)** for per-issue detail dossiers.
+See **[docs/DECRYPT-STALL.md](docs/DECRYPT-STALL.md)** for the open decrypt-stall dossier.
+
+## Features and custom changes
+
+- LineageOS 24 FBEv1 data decryption
+- TEE services stopped after decrypt
+- CE/file-name keys re-applied on `/data` remount
+- qseecomd late start with sg readiness gate
+- Kernel built from source (LOS config, LTO + CFI)
+- dtb/recovery_dtbo from LineageOS
+- Logical-partition tools
+- Magisk 31 addon, no AromaFM
+- Encrypted backups
+- `/storage` backup source
+- MTP dates in Windows Explorer
+- Single MTP storage entry
+- OTG plug-event automount with candidate iteration
+- `/usb_otg` mount point
+- Custom USB init
+- Extra languages (Spanish, Hungarian, Simplified/Traditional Chinese)
+- Uniform error-text spacing and form-field alignment (theme)
+- Source-built vibrator HAL, no green-LED setting
+- On-screen navbar lock
+- AVB 2.0 patching
+- LOS-only: no MIUI checks, no MIUI OTA
+- Security-patch and OS-version pins
+- Recovery fork fixes (compiler prototypes, repacker target, reflash menu item)
 
 | Spec | |
 | :--- | :--- |
