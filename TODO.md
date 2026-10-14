@@ -185,7 +185,7 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   asserted; details in `FIXES.md`. Shipped kernel verifies as ours:
   `Linux version 4.19.325-cip136-st20-perf-gf56cbb55005d`, `CONFIG_LTO_CLANG=y`
   + `THINLTO=y` + `CFI_CLANG=y`, `returned INTERRUPTED` present. dtb/dtbo stay
-  the LOS blobs (same kernel commit). (Patch `f56cbb55` reverted 2026-10-14 in `ee83446` — fork now identical to pristine; new builds lack the `returned INTERRUPTED` string but keep the source-build pipeline.)
+  the LOS blobs (same kernel commit). (Patch `f56cbb55` removed from the branch 2026-10-14 — fork identical to pristine; new builds lack the `returned INTERRUPTED` string but keep the source-build pipeline.)
 - [ ] **Verify the source-built kernel boots and decrypts on device** (R12.0_5):
   banner/boot works, `/data` decrypts, behaviour unchanged (the patch era is over — reverted).
 - [x] SMC-spin backstop — dropped with the revert (user order): an
