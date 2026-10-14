@@ -75,13 +75,19 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
+## Build R12.0_8 (pending) — sg-poll gate for qseecomd start (stall prevention, v2)
+
+- [ ] Boot time not regressed (poll returns instantly on normal boots; the 20 s bound only fires on broken UFS).
+- [ ] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin`, `on boot` runs exec-then-start in the shipped init rc.
+- [ ] Stall-rate validation over subsequent decrypts (the statistical proof; a recurrence with `ls /dev/sg*` reopens the case).
+- [ ] Release title carries `(R12.0_8)`.
+
 ## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 
-- [ ] qseecomd started late: logcat should show `starting service
-  'vendor.qseecomd'` under `on boot`, not `on init` (decrypt itself verified
-  working on R12.0_7 2026-10-14; this session's logcat wrapped past boot so
-  the start lines are gone — needs an early-pull logcat. `rpmb
-  invalid-device` count this session: 0).
+- [x] qseecomd start timing (CLOSED as designed, INEFFECTIVE as fix): dmesg
+  proves the sg scan at t=2.054 s vs 2.018 s on `on init` — `on boot` fires
+  ~2 s in this recovery, so the trigger move bought 36 ms. Superseded by the
+  sg poll in R12.0_8. (Logcat can't show starts at all — pre-logd.)
 - [ ] Pristine kernel regression check: banner `R12.0_7`, boots, decrypts;
   no `returned INTERRUPTED` string in the image (patch gone by design).
 - [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A

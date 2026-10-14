@@ -203,6 +203,13 @@ Consequences:
   `init.recovery.qcom.rc` moves `start vendor.qseecomd` from `on init` to
   `on boot`. No hardcodes, no hang risk (`on boot` always fires), nothing
   consumes TEE before it. Rides the next build after R12.0_6.
+- **Dead end recorded (2026-10-14 evening):** merely moving the start from
+  `on init` to `on boot` (shipped in R12.0_7) changed nothing — dmesg proves
+  the sg scan at t=2.054 s vs 2.018 s before, because this recovery's whole
+  trigger cascade completes in ~2 s. Import chain verified (`hw/init.rc` imports
+  `init.recovery.${ro.hardware}.rc`, our file, its only definer of
+  `vendor.qseecomd`), so the edit was live but useless. The bounded sg poll
+  (`wait_sg_rpmb.sh`, 20 s max, falls through) is the actual gate.
 - Validation: subsequent decrypts (rate was ~1 in 5–10; a dozen clean ones
   builds confidence). A recurrence with the new trigger + `ls /dev/sg*` and
   fd data would falsify the startup-race and reopen it.
