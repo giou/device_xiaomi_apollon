@@ -9,7 +9,7 @@
 - [x] OTG MSR-first disk: `sdg1` unmountable → `sdg2` (NTFS) mounted, backups at `/usb_otg/Fox` (log 20261013-1425)
 - [x] OTG single-partition disk: auto-mounted with only the data partition present (2026-10-13, MSR removed)
 - [x] OTG unformatted/unmountable drive: clean `no mountable partition on this drive`, no hang (log 20261013-1436)
-- [ ] LOS zip flash with patching skipped
+- [x] LOS zip flash with patching skipped (verified 2026-10-14 on R12.0_5 — see R12.0_5 section; ROM boot confirmation still pending)
 - [x] OTA row gone, settings stable
 - [x] Navbar lock (no hide option in settings)
 
@@ -23,16 +23,16 @@
   (no `/usb-otg/Fox` migration needed — the old `/usb-otg` mount dir was replaced by `/usb_otg`)
 - [x] Vibration again (source-built effect lib)
 - [x] Battery % vs actual charge (health-HAL path)
-- [ ] Sideload without treble-compat check (next LOS nightly)
+- [x] Sideload without treble-compat check (verified 2026-10-14 on R12.0_5 — code 11, proceeded; see R12.0_5 section)
 - [x] Quick backup: empty default → set once in Settings → persists across reboot
 - [x] Super backup (dd): 8704 MB `super.emmc.win` + SHA2 digest, 540 s (log 20261013-1501)
-- [ ] ROM flash (LOS zip) — now with LP tools restored (official parity), so test the normal path
+- [x] ROM flash (LOS zip) (verified 2026-10-14 on R12.0_5, status=0, OF survived; ROM boot confirmation still pending)
 - [x] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
 - [x] Reflash-button press (repack lossless with effect-lib registration)
 - [x] Offline charging — struck: the flag never lived in recovery's path
   (offline charging runs from the ROM's boot image), so there is nothing
   to verify. Drop stands.
-- [ ] English-only UI, default icon layout, touch sanity
+- [ ] Default English layout + touch sanity (+ spot-check one extra language renders, now that four ship)
 - [x] Green-led setting hidden (Settings LED section absent — confirmed on device)
 - [x] MTP dates in Windows: **fixed** (fork `giou/Recovery` `bc6516b2`) — `mtp/ffs/node.cpp` sent `DATE_MODIFIED`/`DATE_ADDED` as `MTP_TYPE_UINT64`; the prop-list path Windows uses needs DateTime *strings*, while the ObjectInfo path (Linux/libmtp) already formatted them. Now emits `formatDateTime()` + `MTP_TYPE_STR`. **Verified on device: dates now show in Windows Explorer.**
 
@@ -40,17 +40,17 @@
 
 - [x] MTP date column in Windows (fork `bc6516b2`) — verified
 - [x] LP tools usable in the terminal (`lptools` installed — confirmed)
-- [x] TEE cleanup: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); no in-session re-decrypt path exists (a `/data` remount reuses the decrypted device — see `notes/CE-REMOUNT-FIX.md`), so no regression observed. A future Password-based re-decrypt would need the services restarted; none exists today.
+- [x] TEE cleanup: stop confirmed (`init.svc.gatekeeper-1-0` = `stopped` after decrypt); no in-session re-decrypt path exists (a `/data` remount reuses the decrypted device — see `docs/CE-REMOUNT-FIX.md`), so no regression observed. A future Password-based re-decrypt would need the services restarted; none exists today.
 - [x] Version banner reads `R12.0_3` (confirmed)
 - [x] `/storage` Internal-Storage backup source entry usable, backups to it work (confirmed)
 
 ## Build `38435351717` (R12.0_4) — device-tested 2026-10-13 21:46
 
-- [ ] Encrypted-backup **lock icon** (Backup menu → set a backup password). Fix: `TW_EXCLUDE_ENCRYPTED_BACKUPS := false` reinstated (the recovery `Android.mk` test is **inverted**: unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). `libopenaes`/`isaac` confirmed present in the published image.
-- [ ] Encrypted-backup **restore prompt**: the `(i)` icon no longer overlaps the text. Superseded the one-page `993eb7ff` (reverted) — now done theme-wide in R12.0_5 (`c2165eef`, info text at `%col1_x_icon_text%`); verify on device.
+- [x] Encrypted-backup **lock icon** (verified on R12.0_5 — see R12.0_5 section). (Backup menu → set a backup password). Fix: `TW_EXCLUDE_ENCRYPTED_BACKUPS := false` reinstated (the recovery `Android.mk` test is **inverted**: unset ⇒ `-DTW_EXCLUDE_ENCRYPTED_BACKUPS` + no `libopenaes`). `libopenaes`/`isaac` confirmed present in the published image.
+- [x] Encrypted-backup **restore prompt** (verified on R12.0_5 — see R12.0_5 section): the `(i)` icon no longer overlaps the text. Superseded the one-page `993eb7ff` (reverted) — now done theme-wide in R12.0_5 (`c2165eef`, info text at `%col1_x_icon_text%`); verify on device.
 - [x] Version banner reads `R12.0_4` (confirmed in the published image)
 - [x] `Decrypt.cpp` compiles (host + arm), `libvold` builds, CE symbols linked into the recovery (confirmed in build log + image)
-- [ ] Carried over, still untested: LOS zip flash, sideload without treble-compat check, English-only UI / touch sanity
+- [ ] Carried over, still untested: default-English layout / touch sanity (LOS flash + sideload verified on R12.0_5 — see below)
 
 ### `/data` remount → ❌ still broken on R12.0_4 (diagnosed, re-fixed, not yet built)
 
@@ -87,6 +87,8 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 ## Build R12.0_6 (pending) — remount fix (cached key material) + extra languages
 
+_Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch reset — those ride R12.0_7. A stall on R12.0_6 is still the old race; capture `ls /dev/sg*` if so._
+
 - [ ] `/data` untick→tick with the vold cache in place: log shows
   `Reapply: rebuilding the fscrypt keyring after /data remount` → `device key
   re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`, and
@@ -99,7 +101,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 ## Build R12.0_5 (`38482616737`, published 2026-10-14 01:48) — theme layout + corrected CE re-apply + kernel from source
 
-- [ ] `/data` unmount→remount: names readable without a reboot; log shows
+- [x] `/data` unmount→remount (SUPERSEDED — retest on R12.0_6, item above): names readable without a reboot; log shows
   `Reapply: rebuilding the fscrypt keyring after /data remount` → `device key
   re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`.
   - R12.0_5 fired the hook but could not rebuild: the device/DE/CE keys are all
@@ -135,7 +137,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   `keyring rebuilt`.
 - [x] Encrypted-backup lock icon present, and the restore prompt's `(i)` sits
   like it does elsewhere.  **Verified on device 2026-10-14 (R12.0_5).**
-- [ ] **Extra languages missing from the menu** (found on device 2026-10-14).
+- [x] **Extra languages missing from the menu** (SUPERSEDED — retest on R12.0_6, item above; found on device 2026-10-14).
   The build ships only the 28 `gui/theme/common/languages/*.xml`; the four
   `gui/theme/extra-languages/languages/*.xml` - Spanish, Hungarian, Simplified and
   Traditional Chinese - plus the font overrides they need are copied into `/twres`
@@ -162,7 +164,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   (`Override HEAD now:` + `git log --oneline -3`). Same resulting bytes as R12.0_5,
   so no device re-test is needed beyond the checklist above.
 
-## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)
+## Decrypt stall — ROOT CAUSE CONFIRMED (userspace RPMB race, 2026-10-14; kernel exonerated, patch removed)
 
 Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
@@ -180,7 +182,7 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   below them. "dmesg clean" was evidence *for* the kernel, not against.
 - [x] Official-parity TEE cleanup (`init.recovery.qcom.rc`) — parity only, not a
   fix for this (the wedge is earlier, inside `verify()`).
-- [x] **Kernel fork + fix done:** `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`
+- [x] **Kernel fork + fix (was done, REMOVED 2026-10-14):** `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`
   (`f56cbb55`, from pristine `lineage-24.0` @ `6b34d247`) bounds the
   SCM_INTERRUPTED retry (2 s / 1,000,000 retries, no sleeping) → new
   `SCM_V2_TIMED_OUT` → `-ETIMEDOUT`, logged once. Wedge becomes a loud error
@@ -196,7 +198,7 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   `Linux version 4.19.325-cip136-st20-perf-gf56cbb55005d`, `CONFIG_LTO_CLANG=y`
   + `THINLTO=y` + `CFI_CLANG=y`, `returned INTERRUPTED` present. dtb/dtbo stay
   the LOS blobs (same kernel commit). (Patch `f56cbb55` removed from the branch 2026-10-14 — fork identical to pristine; new builds lack the `returned INTERRUPTED` string but keep the source-build pipeline.)
-- [ ] **Verify the source-built kernel boots and decrypts on device** (R12.0_5):
+- [x] **Source-built kernel boots and decrypts on device (R12.0_5 — verified 2026-10-14** across sessions, incl. metadata decrypt in the stall session):
   banner/boot works, `/data` decrypts, behaviour unchanged (the patch era is over — reverted).
 - [x] SMC-spin backstop — dropped with the revert (user order): an
   occurrence-4-style wedge would hang silently again. Accepted: the recurring
