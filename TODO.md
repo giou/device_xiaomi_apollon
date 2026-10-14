@@ -98,6 +98,12 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   `fscrypt_reload_de_keys`) and `libopenaes` in the ramdisk.
 - [ ] Carried over, still untested: encrypted-backup lock icon, LOS zip flash,
   sideload without the treble check, English-only UI / touch sanity.
+- [ ] Optional cleanup (contradicts the "patch the fork, not the build" rule):
+  the builder's "Patch upstream sources for new Clang" step still rewrites three
+  files inside `bootable/recovery` at build time (openaes `isaac/rand.h`/`rand.c`
+  prototypes, `twrpRepacker.cpp`, `gui/theme/portrait_hdpi/pages/advanced.xml`).
+  Those paths are inside our recovery fork, so the patches could move into the
+  fork itself. Verified they applied cleanly in R12.0_5 (no skip/error annotations).
 
 ## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)
 
