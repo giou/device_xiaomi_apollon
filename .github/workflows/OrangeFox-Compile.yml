@@ -139,7 +139,7 @@ jobs:
         # tree (minus git metadata) into the manifest instead of cloning it.
         # COMMIT_ID is the exact commit this run was triggered on.
         rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
-        mkdir -p "${FOX_ROOT}/$(dirname "${DEVICE_PATH}")"
+        mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
         cp -a "${GITHUB_WORKSPACE}/." "${FOX_ROOT}/${DEVICE_PATH}/"
         rm -rf "${FOX_ROOT}/${DEVICE_PATH}/.git"
         echo "COMMIT_ID=${GITHUB_SHA}" >> "${GITHUB_ENV}"
