@@ -164,15 +164,15 @@ Repos involved:
     `MACH_XIAOMI_APOLLO`, `MACH_XIAOMI_SM8250`,
     `TOUCHSCREEN_NT36xxx_HOSTDL_SPI`, `LTO_CLANG` and `CFI_CLANG` set, and the
     built image must contain the patch's log string (`returned INTERRUPTED`).
-- **`SCM_INTERRUPTED` retry bounded (decrypt-stall fix).** `drivers/soc/qcom/scm.c`
-  retried an `SCM_INTERRUPTED` SMC in an unbounded, non-logging loop while the
-  caller held the SCM and qseecom locks, so a wedged QTEE produced a silent,
-  unkillable, reboot-only wedge (gatekeeper HAL spinning at ~100 % of one core,
-  recoveries's `verify()` waiting forever). Now bounded to 2 s / 1e6 retries —
-  no sleeping, since these wrappers are also used from atomic context — logging
-  once and returning `-ETIMEDOUT`, so the decrypt fails loudly in ~2 s instead.
-  *(fork `lineage-24.0-apollon` `f56cbb55`; see
-  [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md))*
+- **`SCM_INTERRUPTED` retry bound — REVERTED 2026-10-14.** `drivers/soc/qcom/scm.c`
+  carried a 2 s / 1e6-retry bound (`f56cbb55`, reverted in `ee83446`) while the
+  occurrence-4 SMC-spin was thought to be the bug. Occurrence 5 proved the
+  recurring stall is a userspace RPMB livelock whose SMCs all complete, which
+  no SMC-level bound can catch — and the user ordered the patch out. The fork
+  (`lineage-24.0-apollon`) is currently identical to pristine `lineage-24.0`
+  (verified: empty diff on `scm.c`); the branch is kept for any future need.
+  The source-build pipeline is unchanged (same config/toolchain/asserts minus
+  the patch-string check). See [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
 ## Known issues carried (not fixed)
 

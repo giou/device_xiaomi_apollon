@@ -90,7 +90,7 @@ The loop we are stuck in is the **INTERRUPTED** retry *inside*
 `__scm_call_armv8_64`, one level below `__scm_call2` — unbounded and silent.
 "Nothing in dmesg" was evidence *for* the kernel, not against it.
 
-## Fix — implemented in the kernel fork
+## Fix — kernel bound (REVERTED 2026-10-14; kept here as history)
 
 Fork: **`giou/android_kernel_xiaomi_sm8250`**, branch **`lineage-24.0-apollon`**
 (`f56cbb55`), branched from the pristine `lineage-24.0` @ `6b34d247` (the anchor
