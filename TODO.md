@@ -97,7 +97,7 @@ _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch r
 - [ ] Settings > Regional > Language lists the four extras (Spanish, Hungarian,
   Simplified and Traditional Chinese) and CJK text renders.  (`TW_EXTRA_LANGUAGES`
   in the tree, `cfabd87`.)
-- [ ] Release title carries `(R12.0_6)` - the naming change in builder `bce00ff`.
+- [x] Release title carries `(R12.0_6)` (confirmed: `OrangeFox Recovery for apollon // 20261014 (R12.0_6)`).
 
 ## Build R12.0_5 (`38482616737`, published 2026-10-14 01:48) — theme layout + corrected CE re-apply + kernel from source
 
