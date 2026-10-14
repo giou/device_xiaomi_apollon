@@ -136,6 +136,48 @@ BOARD_INCLUDE_RECOVERY_DTBO := true
 Today the tree ships `prebuilt/apollon/{kernel,dtb,recovery_dtbo}` +
 `TARGET_PREBUILT_KERNEL`.
 
+## Occurrence 5 (2026-10-14, R12.0_5) — RPMB userspace spin; the kernel bound did NOT fire
+
+First stall on the source-built kernel (`gf56cbb55005d`, patch present).
+Recovery log ends at the same line as always (`using secdis to decrypt spblob`,
+synthetic-password/Weaver verify after PIN entry). But this time the wedge is
+**not** the kernel SMC loop:
+
+- `returned INTERRUPTED`: 0 in dmesg, 0 in logcat. `TIMED_OUT`/`ETIMEDOUT`: 0.
+  The bound provably never fired — no SMC INTERRUPTED-spin was involved.
+- logcat shows `vendor.qseecomd` (pid 594, thread 608) emitting
+  `E rpmb: rpmb read operation on invalid RPMB device!!` at ~2,500/s,
+  sustained ≥15 s (12:50:48.791 → pull at 12:51:03.272, 37,759 lines). The flood
+  starts within the same second as the PIN submission; the thread was idle
+  before (previous line 12:49:43).
+- The successful session the same morning (`logcat-20261014-0803`) contains
+  zero `rpmb` lines in 28,434 lines: the invalid-device state is the anomaly,
+  not normal noise.
+- dmesg (t=0–97 s) is clean apart from the known early-boot `scm_call failed:
+  func id 0x42001907` (t=0.006 s, pre-existing, cannot be our 2 s bound) and the
+  `ds28e16` battery spam. TWRP's decrypt lines never reach logd, so logcat
+  carries no decrypt flow — only the HAL/daemon side.
+
+Reading: the Weaver verify hammers RPMB reads that fail instantly ("invalid
+device") and retries with no delay, no backoff, no give-up — a userspace
+livelock in/around qseecomd (prebuilt, no source). The kernel bound cannot
+cover this mode: nothing spins inside `__scm_call_armv8_64`. Intermittency
+(~1 in 5–10) + absence on good boots points at a boot-time readiness race
+(RPMB path invalid on some boots when the first Weaver request lands).
+
+Consequences:
+
+- The recovery-side bounded fail-loud (abort the decrypt after N s with a
+  clear message) is promoted from fallback to **primary fix candidate for this
+  mode**. The kernel bound stays for the occurrence-4 (SMC-spin) mode.
+- Whether occurrence 4's SMC spin was the same RPMB storm observed one level
+  down (each retry SMC-ing into a QTEE that answers INTERRUPTED) is unknown —
+  two signatures, possibly one root cause.
+- Next-stall capture: `adb shell top -n 1 -b | head -20` (confirm CPU burn +
+  process) and `ls /dev | grep -i rpmb` vs a good boot (missing node →
+  init-ordering fix in the tree). Testable hypothesis: waiting ~60–90 s after
+  the PIN screen appears before entering the PIN.
+
 ## Capture recipe (SysRq — reusable for any kernel-side stall)
 
 debugfs is disabled in this kernel, so SysRq is the tool. **Before rebooting**:
@@ -178,8 +220,9 @@ cat /proc/<pid>/task/*/stack           # full kernel stack
   fix** for this — it happens *during* `verify()`, earlier. It also means any
   Password-based re-decrypt would need the services restarted.
 - No workaround shipped while the bug was uncaptured. It is now captured; the
-  kernel patch above is the primary option, the recovery-side fail-loud the
-  fallback — user's call.
+  kernel patch above covers the SMC-spin mode (occurrence 4), the recovery-side
+  fail-loud is the primary candidate for the RPMB-spin mode (occurrence 5) —
+  user's call.
 
 ## History
 
