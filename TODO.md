@@ -88,7 +88,8 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   proves the sg scan at t=2.054 s vs 2.018 s on `on init` — `on boot` fires
   ~2 s in this recovery, so the trigger move bought 36 ms. Superseded by the
   sg poll in R12.0_8. (Logcat can't show starts at all — pre-logd.)
-- [ ] Pristine kernel regression check: banner `R12.0_7`, boots, decrypts;
+- [x] Pristine kernel regression check: banner `R12.0_7` (image), boots,
+  decrypts repeatedly on device 2026-10-14 (PIN + both remount sessions);
   no `returned INTERRUPTED` string in the image (patch gone by design).
 - [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
   recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
