@@ -234,6 +234,13 @@ TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 			     
 # TWRP specific build flags
 TW_THEME := portrait_hdpi
+
+# Ship the extra languages too (Spanish, Hungarian, Simplified/Traditional
+# Chinese) plus their font overrides.  gui/libfoxui_defaults.go copies
+# gui/theme/extra-languages/{languages,fonts} into /twres only when this is
+# true; without it /twres/languages has just the 28 common ones and the
+# Settings > Regional > Language menu cannot offer the other four.
+TW_EXTRA_LANGUAGES := true
 RECOVERY_SDCARD_ON_DATA := true
 TARGET_RECOVERY_QCOM_RTC_FIX := true
 # TEST (user-ordered): legacy battery services OFF - status-bar % will come

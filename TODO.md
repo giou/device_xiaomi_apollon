@@ -113,6 +113,16 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   `keyring rebuilt`.
 - [x] Encrypted-backup lock icon present, and the restore prompt's `(i)` sits
   like it does elsewhere.  **Verified on device 2026-10-14 (R12.0_5).**
+- [ ] **Extra languages missing from the menu** (found on device 2026-10-14).
+  The build ships only the 28 `gui/theme/common/languages/*.xml`; the four
+  `gui/theme/extra-languages/languages/*.xml` - Spanish, Hungarian, Simplified and
+  Traditional Chinese - plus the font overrides they need are copied into `/twres`
+  only when the tree sets `TW_EXTRA_LANGUAGES := true`
+  (`gui/libfoxui_defaults.go`: `if getMakeVars(ctx, "TW_EXTRA_LANGUAGES") == "true"`,
+  shipping `extra-languages/{fonts,languages}`).  Confirmed absent from R12.0_5's
+  ramdisk (`twres/languages` = exactly the 28 common files).  Flag now set in
+  `BoardConfig.mk`; verify on the next build that Settings > Regional > Language
+  lists them and the CJK text renders.
 - [ ] LOS zip flash with patching skipped, and **sideload without the treble
   check** - use the LineageOS nightly zip you would install normally (that is
   the file whose treble path is in question: OF detects it via `vendor.new.dat`
@@ -120,16 +130,6 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   only the transport, not the check.  `OF_NO_TREBLE_COMPATIBILITY_CHECK` was
   dropped in the minimal-delta pass as a default - if the installer does
   complain, re-add it (the mk comment says "re-add on evidence").
-- [ ] **Translated-label fit + touch sanity.**  (The item used to read
-  "English-only UI", which was misleading: the build is multilingual - 28
-  languages in `gui/theme/common/languages` plus the `extra-languages` set - and
-  language switching is confirmed working.)  Our three theme commits changed
-  geometry only, no strings, so what needs a look is whether a *longer*
-  translation still fits the new layout: switch language (e.g. `zh_CN` or `de`),
-  then check the screens we moved - password prompts, Rename backup, file
-  rename/chmod, Settings > Time offset, the info-icon lines and the failure
-  texts - for clipped or overlapping text.  Tap the moved password field once to
-  confirm the hit target moved with it.  English (default) is already verified.
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
