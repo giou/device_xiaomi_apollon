@@ -75,7 +75,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
-## Build R12.0_7 (pending) — qseecomd late-start (stall prevention) + pristine kernel
+## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 
 - [ ] Decrypt works first try and qseecomd started late: logcat shows
   `starting service 'vendor.qseecomd'` under `on boot`, not `on init`.
@@ -84,6 +84,9 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 - [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
   recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
 - [ ] Release title carries `(R12.0_7)`.
+- [ ] Remount with vold v3 (`2728d08`): untick→tick shows `rebuilding…` →
+  `device key re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`,
+  `/data/media/0` readable without reboot.
 
 ## Build R12.0_6 (pending) — remount fix (cached key material) + extra languages
 
@@ -97,8 +100,8 @@ _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch r
   - R12.0_6 result: hook fired, all three steps FAILED — logcat `exportKey`
     service error `-1000` → v2 cached the *raw* key but every reinstall
     re-exports via dead keystore. Fixed in vold `2728d08` (cache installed
-    bytes, `installKey` directly); retest on the build carrying it (R12.0_7
-    still has v2). See `docs/CE-REMOUNT-FIX.md`.
+    bytes, `installKey` directly); retest moved to the R12.0_7 retry below
+    (carries vold `2728d08`). See `docs/CE-REMOUNT-FIX.md`.
 - [x] Settings > Regional > Language lists the four extras (Spanish, Hungarian,
   Simplified and Traditional Chinese) and CJK text renders.  **Verified on
   device 2026-10-14 (R12.0_6).**
