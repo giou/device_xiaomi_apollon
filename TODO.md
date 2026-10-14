@@ -188,10 +188,15 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   the LOS blobs (same kernel commit).
 - [ ] **Verify the source-built kernel boots and decrypts on device** (R12.0_5):
   banner/boot works, `/data` decrypts, behaviour unchanged apart from our patch.
-- [ ] Verify on device: a stall (if it recurs) must now fail after ~2 s with
-  `scm_call failed` in dmesg instead of wedging.
-- [ ] Fallback if the source build proves unworkable: recovery-side bounded
-  fail-loud (abort the decrypt after N s with a clear message).
+- [ ] Verify on device: an SMC-spin stall (occurrence-4 mode) must now fail
+  after ~2 s with `scm_call failed` in dmesg instead of wedging. (Occurrence 5
+  proved a second, RPMB-spin mode that the kernel bound cannot catch — see
+  `docs/DECRYPT-STALL.md`; that mode still hangs and wants the recovery-side
+  item below.)
+- [ ] Recovery-side bounded fail-loud (abort the decrypt after N s with a clear
+  message) — promoted from fallback to primary candidate for the RPMB-spin
+  mode, where qseecomd retries invalid-RPMB reads forever (37,759 identical
+  errors in 15 s on 2026-10-14).
 - [ ] Low priority, noted from the same logs: a screenshot taken **before**
   `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
