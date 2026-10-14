@@ -135,13 +135,13 @@ jobs:
           echo "::error::Manifest checkout not found at ${FOX_ROOT}. Set-up Manifest probably failed."
           exit 1
         fi
-        # This workflow lives in the device tree itself: copy the checked-out
-        # tree (minus git metadata) into the manifest instead of cloning it.
-        # COMMIT_ID is the exact commit this run was triggered on.
+        # This workflow lives in the device tree itself: export the exact commit
+        # this run was triggered on into the manifest (a plain copy would try to
+        # copy the manifest into itself - the checkout root contains it).
+        # COMMIT_ID is GITHUB_SHA by construction.
         rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
         mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
-        cp -a "${GITHUB_WORKSPACE}/." "${FOX_ROOT}/${DEVICE_PATH}/"
-        rm -rf "${FOX_ROOT}/${DEVICE_PATH}/.git"
+        git -C "${GITHUB_WORKSPACE}" archive "${GITHUB_SHA}" | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
         echo "COMMIT_ID=${GITHUB_SHA}" >> "${GITHUB_ENV}"
         echo "Tree placed at ${DEVICE_PATH} from ${GITHUB_SHA} (${GITHUB_REF_NAME})"
 
