@@ -47,11 +47,11 @@ lunch twrp_apollon-bp2a-eng
 mka adbd recoveryimage
 ```
 
-Out: `out/target/product/apollon/OrangeFox-R12.0-fox16.0-Unofficial-apollon.img`
-(`R12.0` is the OrangeFox release version, not Android; `fox16.0` is the
-manifest branch. Published releases are titled `... (R12.0_<n>)` from
-`FOX_MAINTAINER_PATCH_VERSION` in `fox_apollon.mk` — check the recovery
-banner matches the file.)
+Out: `out/target/product/apollon/OrangeFox-R12.0-Unofficial-apollon.img`
+(`R12.0` is the OrangeFox release version, not Android. The builder keeps
+upstream's filename as-is — no manifest-branch infix. Published releases are
+titled `... (R12.0_<n>)` from `FOX_MAINTAINER_PATCH_VERSION` in
+`fox_apollon.mk` — check the recovery banner matches the file.)
 
 ## Notes for maintainers
 
