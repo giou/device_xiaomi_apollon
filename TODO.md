@@ -75,7 +75,7 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
-## Build R12.0_5 (pending) — theme layout + corrected CE re-apply
+## Build R12.0_5 (`38482616737`, published 2026-10-14 01:48) — theme layout + corrected CE re-apply + kernel from source
 
 - [ ] `/data` unmount→remount: names readable without a reboot; log shows
   `Reapply: rebuilding fscrypt keyring for 1 user(s)` … `Reapply: CE keys
@@ -91,7 +91,11 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 - [ ] Failure-text spacing uniform: wrong password on Set Password / the PIN
   decrypt screen → the red text sits ~30px below the red underline, matching
   Rename backup. (`5faba288`.)
-- [ ] Version banner reads `R12.0_5`.
+- [x] Version banner reads `R12.0_5` (confirmed in the published image).
+- [x] Verified in the published artifact (not yet on device): banner `R12.0_5`;
+  `col1_x_icon_text` = 136 and nine `below:idfail_*` anchors in the theme; CE
+  re-apply strings (`rebuilding fscrypt keyring`, `CE keys restored`,
+  `fscrypt_reload_de_keys`) and `libopenaes` in the ramdisk.
 - [ ] Carried over, still untested: encrypted-backup lock icon, LOS zip flash,
   sideload without the treble check, English-only UI / touch sanity.
 
@@ -118,14 +122,19 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   SCM_INTERRUPTED retry (2 s / 1,000,000 retries, no sleeping) → new
   `SCM_V2_TIMED_OUT` → `-ETIMEDOUT`, logged once. Wedge becomes a loud error
   after ~2 s instead of an unkillable hang.
-- [x] **Kernel built from source** (wired): the builder clones
-  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, builds `Image` with
-  LOS's defconfig set + the tree's clang r547379 (LTO+KCFI), asserts the patch
-  is in the image, and installs it over `prebuilt/apollon/kernel`. dtb/dtbo stay
+- [x] **Kernel built from source** — done. Builder run `38482616737` cloned
+  `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, built `Image` with
+  LOS's full apollon config set (`kona-perf_defconfig` + `debugfs.config` +
+  `sm8250-common.config` + `apollo.config`) using the tree's clang r547379 with
+  `LLVM=1`, and installed it over `prebuilt/apollon/kernel`. First attempt
+  exposed two silent-loss bugs (missing device fragment → no Xiaomi board/touch;
+  config phase without `LLVM=1` → `CONFIG_LTO_NONE`), both fixed and now
+  asserted; details in `FIXES.md`. Shipped kernel verifies as ours:
+  `Linux version 4.19.325-cip136-st20-perf-gf56cbb55005d`, `CONFIG_LTO_CLANG=y`
+  + `THINLTO=y` + `CFI_CLANG=y`, `returned INTERRUPTED` present. dtb/dtbo stay
   the LOS blobs (same kernel commit).
-- [ ] **Verify the first source-built kernel boots and decrypts** (R12.0_5):
-  confirm the banner/boot works, `/data` decrypts, and the LD'd behaviour is
-  unchanged apart from our patch. Watch for LTO link memory on the runner.
+- [ ] **Verify the source-built kernel boots and decrypts on device** (R12.0_5):
+  banner/boot works, `/data` decrypts, behaviour unchanged apart from our patch.
 - [ ] Verify on device: a stall (if it recurs) must now fail after ~2 s with
   `scm_call failed` in dmesg instead of wedging.
 - [ ] Fallback if the source build proves unworkable: recovery-side bounded

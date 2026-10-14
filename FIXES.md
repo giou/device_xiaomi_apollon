@@ -118,15 +118,26 @@ Repos involved:
 
 - **The kernel is compiled from our fork, not extracted.** The builder clones
   `giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon` and builds `Image`
-  with LOS's own config set for this device
-  (`android_device_xiaomi_sm8250-common@lineage-24.0`):
+  with LOS's own config set for this device (from
+  `android_device_xiaomi_sm8250-common@lineage-24.0` +
+  `android_device_xiaomi_apollon@lineage-24.0`):
   `vendor/kona-perf_defconfig` + `vendor/debugfs.config` +
-  `vendor/xiaomi/sm8250-common.config`, which enable `CONFIG_LTO_CLANG` +
-  `CONFIG_CFI_CLANG` — i.e. LTO + KCFI exactly as LOS ships it. Toolchain: the
-  clang this tree already carries (`clang-r547379`), used with `LLVM=1` so lld
-  and llvm-ar come from the same prebuilt. The built `Image` is installed over
-  `prebuilt/apollon/kernel`; the committed prebuilt remains as a one-commit
-  rollback.
+  `vendor/xiaomi/sm8250-common.config` + `vendor/xiaomi/apollo.config`, which
+  enable `CONFIG_LTO_CLANG` (+ `CONFIG_THINLTO`) + `CONFIG_CFI_CLANG` — i.e.
+  LTO + KCFI exactly as LOS ships it. Toolchain: the clang this tree already
+  carries (`clang-r547379`), used with `LLVM=1` on **both** the config phase and
+  the build so lld and llvm-ar come from the same prebuilt. The built `Image` is
+  installed over `prebuilt/apollon/kernel`; the committed prebuilt remains as a
+  one-commit rollback.
+  - Two traps, both hit while bringing this up. (1) `apollo.config` is not
+    optional: it carries `CONFIG_MACH_XIAOMI_APOLLO`, which selects
+    `CONFIG_MACH_XIAOMI_SM8250` and is what supplies the touchscreen driver —
+    without it the kernel has no touch in recovery, and it surfaces only by luck
+    (upstream code guarded on that symbol leaves variables unused, which
+    `CONFIG_CC_WERROR=y` turns into a build failure). (2) `LLVM=1` must be
+    passed to `defconfig`/`olddefconfig` too: `LTO_CLANG` and `CFI_CLANG` depend
+    on `CC_IS_CLANG && LD_IS_LLD`, so a config phase run with the host gcc
+    silently resolves the choice to `CONFIG_LTO_NONE` — no LTO, no CFI.
   - LOS's own kernel images are produced by their kernel CI with a *built* LLVM
     (`llvm-r596125-release`, clang 22.0.2) **plus PGO/BOLT/MLGO profile data** —
     not reproducible from public prebuilts. We match their config/flags, not
@@ -135,9 +146,11 @@ Repos involved:
   - `dtb` and `recovery_dtbo` deliberately stay the LOS blobs: our fork is the
     same kernel commit they were generated from and our only change is in the
     Image, so they stay consistent (and the proven boot data is untouched).
-  - Two fail-loud asserts in the build step: the clone must contain the patch
-    (`scm_interrupted_give_up`), and the built image must contain the patch's log
-    string (`returned INTERRUPTED`).
+  - The build step asserts instead of trusting the merge: the clone must contain
+    the patch (`scm_interrupted_give_up`), the merged config must have
+    `MACH_XIAOMI_APOLLO`, `MACH_XIAOMI_SM8250`,
+    `TOUCHSCREEN_NT36xxx_HOSTDL_SPI`, `LTO_CLANG` and `CFI_CLANG` set, and the
+    built image must contain the patch's log string (`returned INTERRUPTED`).
 - **`SCM_INTERRUPTED` retry bounded (decrypt-stall fix).** `drivers/soc/qcom/scm.c`
   retried an `SCM_INTERRUPTED` SMC in an unbounded, non-logging loop while the
   caller held the SCM and qseecom locks, so a wedged QTEE produced a silent,
