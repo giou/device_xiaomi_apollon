@@ -103,11 +103,8 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 _Note: cloned before the qseecomd late-start (`4965794`) and the kernel branch reset — those ride R12.0_7. A stall on R12.0_6 is still the old race; capture `ls /dev/sg*` if so._
 
-- [ ] `/data` untick→tick with the vold cache in place: log shows
-  `Reapply: rebuilding the fscrypt keyring after /data remount` → `device key
-  re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`, and
-  `/data/media/0` is readable **without a reboot**.  (vold `aaa3135`; if a step
-  fails, its breadcrumb names it and `adb logcat` has the errno.)
+- [x] `/data` untick→tick (VERIFIED on R12.0_7-retry with vold v3 — R12.0_6
+  itself carries the flawed v2 and can never pass this; see R12.0_7 section).
   - R12.0_6 result: hook fired, all three steps FAILED — logcat `exportKey`
     service error `-1000` → v2 cached the *raw* key but every reinstall
     re-exports via dead keystore. Fixed in vold `2728d08` (cache installed
