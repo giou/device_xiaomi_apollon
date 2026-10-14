@@ -101,8 +101,9 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
-  un-gated. The recovery-override step asserts them (content markers, next to
-  the MTP/OTG ones) instead of the tree being rewritten at build time. Same resulting bytes as R12.0_5,
+  un-gated. The override step clones the fork as-is — no build-time rewriting
+  and no content-marker asserts; the log records the fork commit used
+  (`Override HEAD now:` + `git log --oneline -3`). Same resulting bytes as R12.0_5,
   so no device re-test is needed beyond the checklist above.
 
 ## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)

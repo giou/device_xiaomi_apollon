@@ -115,10 +115,9 @@ Repos involved:
   twice, MI-logo bootloop); and the manual "Flash current OrangeFox" item in
   `advanced.xml` required `tw_has_boot_slots=1`, which only holds with
   `AB_OTA_UPDATER`, hiding the button entirely on A-only devices. Nothing is
-  rewritten at build time any more: the step that overrides
-  `bootable/recovery` asserts them alongside the MTP/OTG markers and fails
-  loud if a re-sync or force-push loses one. *(fork:
-  `giou/Recovery@fox_16.0-apollon` `41e0acf5`)*
+  rewritten at build time any more: both override steps just clone our forks
+  and print the commit they used, so the build log is the audit trail.
+  *(fork: `giou/Recovery@fox_16.0-apollon` `41e0acf5`)*
 
 ## Hardware HALs
 
