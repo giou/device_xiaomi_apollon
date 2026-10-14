@@ -48,8 +48,7 @@ mka adbd recoveryimage
 ```
 
 Out: `out/target/product/apollon/OrangeFox-R12.0-Unofficial-apollon.img`
-(`R12.0` is the OrangeFox release version, not Android. The builder keeps
-upstream's filename as-is — no manifest-branch infix. Published releases are
+(`R12.0` is the OrangeFox release version, not Android. Published releases are
 titled `... (R12.0_<n>)` from `FOX_MAINTAINER_PATCH_VERSION` in
 `fox_apollon.mk` — check the recovery banner matches the file.)
 

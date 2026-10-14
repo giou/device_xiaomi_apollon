@@ -156,14 +156,12 @@ Repos involved:
     not reproducible from public prebuilts. We match their config/flags, not
     their exact binary; if the tree's clang ever misbehaves, pin its newer
     sibling next.
-  - `dtb` and `recovery_dtbo` deliberately stay the LOS blobs: our fork is the
-    same kernel commit they were generated from and our only change is in the
-    Image, so they stay consistent (and the proven boot data is untouched).
-  - The build step asserts instead of trusting the merge: the clone must contain
-    the patch (`scm_interrupted_give_up`), the merged config must have
-    `MACH_XIAOMI_APOLLO`, `MACH_XIAOMI_SM8250`,
-    `TOUCHSCREEN_NT36xxx_HOSTDL_SPI`, `LTO_CLANG` and `CFI_CLANG` set, and the
-    built image must contain the patch's log string (`returned INTERRUPTED`).
+  - `dtb` and `recovery_dtbo` deliberately stay the LOS blobs: the fork is the
+    pristine commit they were generated from, so they stay consistent (and the
+    proven boot data is untouched).
+  - The build step asserts instead of trusting the merge: the merged config
+    must have `MACH_XIAOMI_APOLLO`, `MACH_XIAOMI_SM8250`,
+    `TOUCHSCREEN_NT36xxx_HOSTDL_SPI`, `LTO_CLANG` and `CFI_CLANG` set.
 - **`SCM_INTERRUPTED` retry bound — REMOVED 2026-10-14.** `drivers/soc/qcom/scm.c`
   carried a 2 s / 1e6-retry bound (`f56cbb55`) while the occurrence-4 SMC-spin
   was thought to be the bug. Occurrence 5 proved the
