@@ -35,10 +35,9 @@ git clone --depth=1 --single-branch --branch fox_16.0 \
 ```
 
 Extra sources (`vendor/qcom/opensource/vibrator` for the AIDL vibrator HAL)
-are declared in [twrp.dependencies](twrp.dependencies) and cloned by the
-[OrangeFox-Action-Builder](https://github.com/giou/OrangeFox-Action-Builder)
-`Clone TWRP dependencies` step — or clone them manually to the listed
-`target_path`.
+are declared in [twrp.dependencies](twrp.dependencies) and cloned by this
+repo's own `OrangeFox - Build` workflow (`Clone TWRP dependencies` step) —
+or clone them manually to the listed `target_path`.
 
 Build:
 

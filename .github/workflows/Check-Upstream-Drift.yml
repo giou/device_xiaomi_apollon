@@ -1,0 +1,117 @@
+name: Upstream Drift Watch
+
+# Read-only Tier-1 maintenance: reports when LineageOS-side sources move
+# past what the tree was proven good against. Commits nothing, builds
+# nothing, releases nothing. Red (exit 1) means "refresh + device-test
+# decrypt", green means "no drift".
+#
+# Anchors (bump these on every kernel/blob refresh, after decrypt re-test):
+# - KERNEL_BASE: LOS kernel commit our dtb/recovery_dtbo blobs were extracted
+#   from (proven decrypting). The kernel Image itself is built from our own
+#   fork now (see FIXES.md), so drift here means the blob source moved.
+# - VENDOR_SINCE: date our recovery/root blobs were proven good.
+# Vendor queries are pinned to lineage-24.0 (what the tree consumes);
+# SPL bumps are NOT drift (2099 policy absorbs them) and are ignored here.
+#
+# Covers the decrypt-critical set: dtb/recovery_dtbo (LOS boot image source),
+# gatekeeper/keymaster/qseecomd + vintf blobs (TheMuppets vendor).
+
+on:
+  schedule:
+    # Monday 07:00 UTC - after the weekend LOS weeklies
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  drift:
+    name: Check upstream drift
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      KERNEL_BASE: 6b34d24765327d746074c8e53b5ad0d24a51acc7
+      KERNEL_BRANCH: lineage-24.0
+      VENDOR_SINCE: 2026-10-12
+      VOLDS_BASE: 953de9608eb78380b3c4e39e801c2bc0af7dbddc
+    steps:
+      - name: Check for drift
+        run: |
+          set -euo pipefail
+          DRIFT=0
+          echo "# Upstream drift check ($(date -u +%F))" >> "${GITHUB_STEP_SUMMARY}"
+          echo "" >> "${GITHUB_STEP_SUMMARY}"
+
+          echo "=== kernel: ${KERNEL_BASE}...${KERNEL_BRANCH} ==="
+          curl -sfL "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/${KERNEL_BASE}...${KERNEL_BRANCH}" -o /tmp/kernel-compare.json
+          AHEAD=$(python3 -c "import json; print(json.load(open('/tmp/kernel-compare.json')).get('ahead_by', '?'))")
+          echo "kernel commits ahead of snapshot: ${AHEAD}"
+          if [[ "${AHEAD}" != "0" ]]; then
+            DRIFT=1
+            python3 -c "
+          import json
+          d = json.load(open('/tmp/kernel-compare.json'))
+          print('#### Kernel DRIFT: %s new commit(s)' % d.get('ahead_by'))
+          for c in d.get('commits', [])[:15]:
+              print('- %s %s %s' % (c['sha'][:8], c['commit']['author']['date'][:10], c['commit']['message'].splitlines()[0][:90]))
+          " | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Kernel: no drift (snapshot == HEAD)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          echo "=== vendor repos since ${VENDOR_SINCE} ==="
+          for repo in proprietary_vendor_xiaomi_apollon proprietary_vendor_xiaomi_sm8250-common; do
+            echo "--- TheMuppets/${repo} ---"
+            curl -sfL "https://api.github.com/repos/TheMuppets/${repo}/commits?sha=lineage-24.0&since=${VENDOR_SINCE}T00:00:00Z&per_page=20" -o "/tmp/vendor-${repo}.json"
+            N=$(python3 -c "import json; print(len(json.load(open('/tmp/vendor-${repo}.json'))))")
+            echo "commits since anchor: ${N}"
+            if [[ "${N}" != "0" ]]; then
+              DRIFT=1
+              {
+                echo "#### Vendor DRIFT: TheMuppets/${repo} (${N} commit(s) since ${VENDOR_SINCE})"
+                python3 -c "
+          import json
+          for c in json.load(open('/tmp/vendor-${repo}.json'))[:10]:
+              print('- %s %s %s' % (c['sha'][:8], c['commit']['author']['date'][:10], c['commit']['message'].splitlines()[0][:90]))
+          "
+              } | tee -a "${GITHUB_STEP_SUMMARY}"
+            else
+              echo "- Vendor ${repo}: no drift" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          done
+
+          echo "=== system/vold (fork base vs OrangeFox upstream) ==="
+          curl -sfL "https://gitlab.com/api/v4/projects/OrangeFox%2Fsystem%2Fvold/repository/compare?from=${VOLDS_BASE}&to=fox_16.0" -o /tmp/vold-compare.json
+          VN=$(python3 -c "import json; print(len(json.load(open('/tmp/vold-compare.json')).get('commits', [])))")
+          echo "system/vold commits upstream since fork base: ${VN}"
+          if [[ "${VN}" != "0" ]]; then
+            DRIFT=1
+            {
+              echo "#### system/vold DRIFT: ${VN} commit(s) upstream since our fork base"
+              echo "     (merge into giou/android_system_vold, then bump VOLDS_BASE)"
+              python3 -c "
+          import json
+          for c in json.load(open('/tmp/vold-compare.json')).get('commits', [])[:15]:
+              print('- %s %s %s' % (c['short_id'], c['created_at'][:10], c['title'][:90]))
+          "
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- system/vold: no drift (fork base == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          echo "=== latest LOS nightly (info only) ==="
+          curl -sfL "https://download.lineageos.org/api/v2/devices/apollon/builds" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print('latest nightly:', (d[0].get('date') if isinstance(d,list) and d else d))" \
+            | tee -a "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${DRIFT}" != "0" ]]; then
+            echo "" >> "${GITHUB_STEP_SUMMARY}"
+            echo "## Action: refresh dtb/recovery_dtbo + vendor blobs, device-test decrypt, then bump anchors" >> "${GITHUB_STEP_SUMMARY}"
+            echo "::error::Upstream drift detected - see summary. Refresh dtb/recovery_dtbo + vendor blobs, re-test decrypt, then bump KERNEL_BASE/VENDOR_SINCE/VOLDS_BASE."
+            exit 1
+          fi
+          echo "No drift. Tree is current."
