@@ -180,9 +180,83 @@ request lands.
   (`hw/init.rc` imports `init.recovery.${ro.hardware}.rc`, our file, its
   only definer of `vendor.qseecomd`). The edit was live but useless. The
   poll is the actual gate.
-- Validation: later decrypts. The rate was about 1 in 5–10. A dozen clean
-  ones builds confidence. A recurrence with the new gate plus `ls /dev/sg*`
-  and fd data reopens the case and kills the startup-race reading.
+- Validation: run the steps in [Validation](#validation-is-the-fix-working).
+  The rate was about 1 in 5–10, so the bar is about 30 clean decrypts, not
+  one. A recurrence with the new gate plus `ls /dev/sg*` and fd data reopens
+  the case and kills the startup-race reading.
+
+## Validation (is the fix working?)
+
+A single clean boot proves nothing: the stall is a race, about 1 in 5–10
+boots. Prove the fix in three steps.
+
+### 1. The gate ran
+
+Run this after the recovery boots:
+
+```sh
+adb shell dmesg | grep wait_sg_rpmb
+```
+
+A boot where the gate ran shows two lines:
+
+```
+wait_sg_rpmb: waiting for sg0 sg1 sg2
+wait_sg_rpmb: ready after N tries
+```
+
+- `N = 0`: the sg nodes already existed. The poll cost about 0 ms. Normal.
+- `N` above 0: coldboot was still running, so the gate waited. On such a
+  boot the old code would have started qseecomd early and latched "invalid
+  RPMB device". This is direct proof that the gate stopped the race on that
+  boot.
+- `wait_sg_rpmb: TIMEOUT, proceeding anyway`: the gate hit its 20 s bound and
+  qseecomd started with no gate. The protection did **not** apply. Capture the
+  logs and treat that boot as a near-miss.
+
+The rc runs the script with `exec` before `start vendor.qseecomd`, and `exec`
+blocks. So the start cannot happen before the script exits.
+
+### 2. RPMB was acquired
+
+Two signals, both taken from the occurrence-5 capture:
+
+```sh
+adb shell logcat -d | grep -c "invalid RPMB device"
+adb shell 'ls -l /proc/$(pidof qseecomd)/fd 2>/dev/null | grep -o "/dev/sg[0-9]*" | sort -u'
+```
+
+Expect 0 RPMB lines, and one sg fd (`sg0` or `sg1` on a good boot). A held
+sg fd is positive proof that qseecomd acquired RPMB. Ignore the `EventTagMap`
+warning and the permissive `avc: denied` lines.
+
+### 3. Enough clean decrypts
+
+Count every reboot and decrypt. Record one line for each, with the date, `N`,
+the RPMB count and the result. Use this table:
+
+- rate 1 in 5: about 15 clean runs give 96% confidence.
+- rate 1 in 10: about 25–30 clean runs give 93–96% confidence.
+
+Stop after 30 clean runs. Keep the OTG drive unplugged: it adds `sdg1` and
+`sdg2`, which are different devices, and it only confuses the sg check.
+
+### If it stalls again
+
+Capture this set before the reboot. It decides the case:
+
+```sh
+adb shell ls -l /dev/sg*
+adb shell 'ls -l /proc/$(pidof qseecomd)/fd 2>/dev/null | grep sg'
+adb shell dmesg | grep wait_sg_rpmb
+adb shell logcat -d | grep -c "invalid RPMB device"
+```
+
+- Stall after `ready after N`: the gate passed, so the startup-race reading is
+  wrong. Reopen the case.
+- Stall after `TIMEOUT`: the gate's bound failed, not the reading.
+- Do not collect PIDs with `ps | grep`: it matches its own ancestors. Use
+  `pidof`.
 
 ## Capture recipe (SysRq for a kernel-side stall)
 
