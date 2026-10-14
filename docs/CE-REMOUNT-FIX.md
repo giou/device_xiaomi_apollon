@@ -75,13 +75,18 @@ needs the user's PIN — the device key blob sits in the **plaintext**
 1. **vold** — forked as `giou/android_system_vold` (branch **`fox_16.0-apollon`**,
    based on OrangeFox `fox_16.0` @ `953de96`; the fork's `fox_16.0` branch is kept
    pristine as an upstream mirror); direct source edits:
-   - Cache the **unwrapped** material at the moment each key is installed while
-     keystore is alive: the device key in `fscrypt_initialize_systemwide_keys()`,
-     each DE key in `load_all_de_keys()`, each CE key in
-     `fscrypt_unlock_ce_storage()`.
+   - Cache the exact **installed** bytes (post-export, as handed to the kernel)
+     at the moment each key is installed while keystore is alive: the device
+     key in `fscrypt_initialize_systemwide_keys()`, each DE key in
+     `load_all_de_keys()`, each CE key in `fscrypt_unlock_ce_storage()` — via
+     a new `install_storage_key()` out-param (existing callers untouched).
+     Caching the *raw* key is not enough: `install_storage_key()` re-exports
+     through keystore2 on every call under `use_hw_wrapped_key`, and keystore
+     is dead by re-apply time (proven on R12.0_6: `exportKey` service error
+     `-1000`, `Failed to get ephemeral wrapped key`).
    - `fscrypt_reinstall_cached_device_key()` /
-     `fscrypt_reinstall_cached_user_keys()` install that material with
-     `install_storage_key()` and nothing else: **no keystore**, no
+     `fscrypt_reinstall_cached_user_keys()` install those bytes with
+     `installKey()` directly (pure ioctl) and nothing else: **no keystore**, no
      `retrieveOrGenerateKey()` (which would generate *and write* a replacement key
      if it could not read one), no writes at all. An empty cache fails loudly
      rather than guessing.
@@ -107,10 +112,22 @@ needs the user's PIN — the device key blob sits in the **plaintext**
 ## Security
 Process-local only (vold code is linked into the recovery). The material is never
 written to disk and never logged - only "device key re-installed"-style
-breadcrumbs are. The **PIN is never cached**: what is held is already-unwrapped
-key material of the kind the kernel keeps in the keyring anyway, in a root/ADB-
-trusted context. It is wiped on Format Data, and this path can never take a
-generate/write branch because it only calls `install_storage_key()`.
+breadcrumbs are. The **PIN is never cached**: what is held is the installed
+(ephemeral-wrapped) form of key material of the kind the kernel keeps in the
+keyring anyway, in a root/ADB-trusted context. It is wiped on Format Data, and
+this path can never take a generate/write branch because it only calls
+`installKey()`.
+
+## R12.0_6 result — v2 cached raw, failed in `exportWrappedStorageKey`
+
+The hook fired correctly (`Reapply: rebuilding…` plus per-step FAILED lines —
+the breadcrumbs worked as designed), but all three reinstalls failed: logcat
+shows `keystore2 Keystore exportKey returned service specific error: -1000` →
+`Failed to get ephemeral wrapped key` → `apollon: failed to re-install the
+cached device key`. The v2 cache held the *raw* key, and every
+`install_storage_key()` call re-exports under `use_hw_wrapped_key`. Fixed in
+vold `2728d08` (cache installed bytes, reinstall via `installKey`); rides the
+build after R12.0_7, which (like R12.0_6) still carries v2.
 
 ## Verification
 1. Decrypt → `ls /data/media/0` readable, and `/proc/keys` has the fscrypt entries.
