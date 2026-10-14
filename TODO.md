@@ -75,6 +75,16 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
 
 - v17 decrypt (4/4 incl. repeats), MTP working, kernel enumerates `sdg1+sdg2`.
 
+## Build R12.0_7 (pending) — qseecomd late-start (stall prevention) + pristine kernel
+
+- [ ] Decrypt works first try and qseecomd started late: logcat shows
+  `starting service 'vendor.qseecomd'` under `on boot`, not `on init`.
+- [ ] Pristine kernel regression check: banner `R12.0_7`, boots, decrypts;
+  no `returned INTERRUPTED` string in the image (patch gone by design).
+- [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
+  recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
+- [ ] Release title carries `(R12.0_7)`.
+
 ## Build R12.0_6 (pending) — remount fix (cached key material) + extra languages
 
 - [ ] `/data` untick→tick with the vold cache in place: log shows
