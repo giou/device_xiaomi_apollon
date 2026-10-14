@@ -229,7 +229,8 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   `init.recovery.qcom.rc` so acquisition runs after ueventd coldboot drains.
   Rides the next build after R12.0_6; validate over subsequent decrypts
   (recurrence + `ls /dev/sg*`/fd data would falsify).
-- [ ] Low priority, noted from the same logs: a screenshot taken **before**
+- [x] Low priority, noted from the same logs: a screenshot taken **before**
   `/data` is decrypted is reported as saved to `/sdcard/Fox/screenshots/…` but is
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
-  not survive a reboot. Cosmetic; unrelated to the stall.
+  not survive a reboot. **Verified as-documented 2026-10-14 (R12.0_7): pulled
+  pre-reboot via `adb pull`, PNG opens fine.** Cosmetic; unrelated to the stall.
