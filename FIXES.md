@@ -114,10 +114,11 @@ Repos involved:
   A-only device like apollon repacked into **BOOT** (confirmed: `sde50` written
   twice, MI-logo bootloop); and the manual "Flash current OrangeFox" item in
   `advanced.xml` required `tw_has_boot_slots=1`, which only holds with
-  `AB_OTA_UPDATER`, hiding the button entirely on A-only devices. The builder
-  step that used to sed these in now only **verifies** them and fails loud if a
-  re-sync or force-push loses one. *(fork: `giou/Recovery@fox_16.0-apollon`
-  `41e0acf5`)*
+  `AB_OTA_UPDATER`, hiding the button entirely on A-only devices. Nothing is
+  rewritten at build time any more: the step that overrides
+  `bootable/recovery` asserts them alongside the MTP/OTG markers and fails
+  loud if a re-sync or force-push loses one. *(fork:
+  `giou/Recovery@fox_16.0-apollon` `41e0acf5`)*
 
 ## Hardware HALs
 
