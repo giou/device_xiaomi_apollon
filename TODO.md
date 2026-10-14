@@ -123,13 +123,15 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   ramdisk (`twres/languages` = exactly the 28 common files).  Flag now set in
   `BoardConfig.mk`; verify on the next build that Settings > Regional > Language
   lists them and the CJK text renders.
-- [ ] LOS zip flash with patching skipped, and **sideload without the treble
-  check** - use the LineageOS nightly zip you would install normally (that is
-  the file whose treble path is in question: OF detects it via `vendor.new.dat`
-  in `orangefox.cpp`).  Sideloading the OrangeFox recovery zip would exercise
-  only the transport, not the check.  `OF_NO_TREBLE_COMPATIBILITY_CHECK` was
-  dropped in the minimal-delta pass as a default - if the installer does
-  complain, re-add it (the mk comment says "re-add on evidence").
+- [x] LOS zip flash + sideload, treble path.  Sideloaded
+  `lineage-24.0-20261011-nightly-apollon-signed.zip` on R12.0_5 (2026-10-14):
+  assert passed (`AssertDevice=[apollon,apollo,apollopro]`), OF logged
+  `detected Treble ROM installer. [code=11]` and **proceeded** (no refusal - so
+  `OF_NO_TREBLE_COMPATIBILITY_CHECK` is not needed), LP resized
+  system/vendor/product/odm/system_ext, system was patched block-by-block, and
+  the addon repacked/flashed the boot image for Magisk.  `operation_end -
+  status=0`.  No recovery image was written, so OF survived the ROM flash.
+  ROM boot confirmation still pending.
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
