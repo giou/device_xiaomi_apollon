@@ -120,7 +120,16 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   only the transport, not the check.  `OF_NO_TREBLE_COMPATIBILITY_CHECK` was
   dropped in the minimal-delta pass as a default - if the installer does
   complain, re-add it (the mk comment says "re-add on evidence").
-- [ ] English-only UI, default icon layout, touch sanity.
+- [ ] **Translated-label fit + touch sanity.**  (The item used to read
+  "English-only UI", which was misleading: the build is multilingual - 28
+  languages in `gui/theme/common/languages` plus the `extra-languages` set - and
+  language switching is confirmed working.)  Our three theme commits changed
+  geometry only, no strings, so what needs a look is whether a *longer*
+  translation still fits the new layout: switch language (e.g. `zh_CN` or `de`),
+  then check the screens we moved - password prompts, Rename backup, file
+  rename/chmod, Settings > Time offset, the info-icon lines and the failure
+  texts - for clipped or overlapping text.  Tap the moved password field once to
+  confirm the hit target moved with it.  English (default) is already verified.
 - [x] Moved the three build-time workarounds into the recovery fork
   (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
   repacker targets `/recovery` on slotless devices, manual reflash item
