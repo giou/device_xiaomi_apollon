@@ -39,12 +39,6 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Validate config
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_TREE: ${{ env.DEVICE_TREE }}
-        DEVICE_TREE_BRANCH: ${{ env.DEVICE_TREE_BRANCH }}
-        DEVICE_PATH: ${{ env.DEVICE_PATH }}
-        DEVICE_NAME: ${{ env.DEVICE_NAME }}
       run: |
         set -euo pipefail
         echo "Manifest: fox_${MANIFEST_BRANCH}"
@@ -93,7 +87,6 @@ jobs:
 
     - name: Set-up Manifest
       env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
         GH_ACTOR: ${{ github.actor }}
         GH_ACTOR_ID: ${{ github.actor_id }}
       run: |
@@ -146,9 +139,6 @@ jobs:
         echo "Tree placed at ${DEVICE_PATH} from ${GITHUB_SHA} (${GITHUB_REF_NAME})"
 
     - name: Fetch Magisk 31 addon zip
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_PATH: ${{ env.DEVICE_PATH }}
       run: |
         set -euo pipefail
         DEST="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/magisk"
@@ -159,9 +149,6 @@ jobs:
         unzip -l "${DEST}/Magisk-v31.0.zip" | grep -E "util_functions|META-INF/com/google" | head -n 3
 
     - name: Clone TWRP dependencies
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_PATH: ${{ env.DEVICE_PATH }}
       run: |
         set -euo pipefail
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
@@ -205,8 +192,6 @@ jobs:
       # per-superblock keyring dies with the /data mount -> ciphertext names on
       # remount); bootable/recovery carries the apollon fixes.
       # Entry format: <tree path>|<repo>|<branch>
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
       run: |
         set -euo pipefail
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
@@ -230,9 +215,6 @@ jobs:
         EOF
 
     - name: Build the kernel from the apollon fork
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_PATH: ${{ env.DEVICE_PATH }}
       run: |
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
@@ -298,9 +280,6 @@ jobs:
 
     - name: Building OrangeFox
       env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_NAME: ${{ env.DEVICE_NAME }}
-        BUILD_TARGET: ${{ env.BUILD_TARGET }}
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
@@ -329,8 +308,6 @@ jobs:
       # Failure-only observability: disk/memory + tool provenance for the next
       # triage. Cheap, runs only when a build step fails.
       if: failure()
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
       run: |
         echo "=== disk ==="; df -h / || true
         echo "=== memory ==="; free -h || true
@@ -339,10 +316,6 @@ jobs:
         tail -n 30 "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/error.log" 2>/dev/null || echo "(no out/error.log)"
 
     - name: Set Release Properties
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_TREE: ${{ env.DEVICE_TREE }}
-        DEVICE_PATH: ${{ env.DEVICE_PATH }}
       run: |
         set -euo pipefail
         echo "BUILD_DATE=$(TZ=Asia/Manila date +%Y%m%d)" >> "${GITHUB_ENV}"
@@ -365,29 +338,11 @@ jobs:
           echo "::warning::could not read FOX_MAINTAINER_PATCH_VERSION from ${DEVICE_PATH}/fox_*.mk - the release title will not carry a build number."
         fi
 
-    - name: Check build outputs
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_NAME: ${{ env.DEVICE_NAME }}
-      run: |
-        set -euo pipefail
-        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
-        echo "Listing ${OUT_DIR} ..."
-        ls -lh "${OUT_DIR}" || { echo "::error::Output directory not found: ${OUT_DIR}"; exit 1; }
-        if ! compgen -G "${OUT_DIR}/OrangeFox*.img" > /dev/null && ! compgen -G "${OUT_DIR}/OrangeFox*.zip" > /dev/null; then
-          echo "::error::No OrangeFox*.img or OrangeFox*.zip found in ${OUT_DIR} - build probably failed."
-          exit 1
-        fi
-
     - name: Rename assets with maintainer tag
       # Maintainer patch version rides the banner (R12.0_<n>) and the release
       # title, but the vendor packaging script names the files without it
       # (OrangeFox-R12.0-Unofficial-apollon.*). Rename so the files carry it:
       # OrangeFox-R12.0_<n>-Unofficial-apollon.*. Fail loud on unexpected names.
-      env:
-        MANIFEST_BRANCH: ${{ env.MANIFEST_BRANCH }}
-        DEVICE_NAME: ${{ env.DEVICE_NAME }}
-        BUILD_VER: ${{ env.BUILD_VER }}
       run: |
         set -euo pipefail
         if [[ -z "${BUILD_VER:-}" || "${BUILD_VER}" == "0" ]]; then
@@ -395,6 +350,7 @@ jobs:
           exit 1
         fi
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        ls -lh "${OUT_DIR}"
         renamed=0
         for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
           [[ -e "${f}" ]] || continue
