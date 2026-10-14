@@ -26,13 +26,13 @@
 - [x] Sideload without treble-compat check (verified 2026-10-14 on R12.0_5 — code 11, proceeded; see R12.0_5 section)
 - [x] Quick backup: empty default → set once in Settings → persists across reboot
 - [x] Super backup (dd): 8704 MB `super.emmc.win` + SHA2 digest, 540 s (log 20261013-1501)
-- [x] ROM flash (LOS zip) (verified 2026-10-14 on R12.0_5, status=0, OF survived; ROM boot confirmation still pending)
+- [x] ROM flash (LOS zip) (verified 2026-10-14 on R12.0_5, status=0, OF survived). **ROM boot confirmed working on device 2026-10-14.**
 - [x] Decrypt with auto-detect only (`Using keymaster version '4.x'` in log)
 - [x] Reflash-button press (repack lossless with effect-lib registration)
 - [x] Offline charging — struck: the flag never lived in recovery's path
   (offline charging runs from the ROM's boot image), so there is nothing
   to verify. Drop stands.
-- [ ] Default English layout + touch sanity (+ spot-check one extra language renders, now that four ship)
+- [x] Default English layout + touch sanity (+ one extra-language spot-check). **Verified on device 2026-10-14 (R12.0_7).**
 - [x] Green-led setting hidden (Settings LED section absent — confirmed on device)
 - [x] MTP dates in Windows: **fixed** (fork `giou/Recovery` `bc6516b2`) — `mtp/ffs/node.cpp` sent `DATE_MODIFIED`/`DATE_ADDED` as `MTP_TYPE_UINT64`; the prop-list path Windows uses needs DateTime *strings*, while the ObjectInfo path (Linux/libmtp) already formatted them. Now emits `formatDateTime()` + `MTP_TYPE_STR`. **Verified on device: dates now show in Windows Explorer.**
 
