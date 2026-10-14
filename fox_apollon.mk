@@ -30,7 +30,7 @@
 # confirmed in dmesg); hide the inert setting
 OF_USE_GREEN_LED := 0
 OF_MAINTAINER := giou
-FOX_MAINTAINER_PATCH_VERSION := 7
+FOX_MAINTAINER_PATCH_VERSION := 8
 
 # Logical-partition toolkit — official/miatoll parity.
 #   OF_ENABLE_LPTOOLS=1            -> external/lptools (lptools binary)
