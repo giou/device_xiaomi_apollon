@@ -52,7 +52,17 @@ on fs
     insmod /vendor/lib/modules/exfat_miui.ko
     install_keyring
 
-on init
+# qseecomd deliberately starts LATE (decrypt-stall prevention, occurrence 5):
+# its librpmb acquires /dev/sg* ONCE at startup and never recovers if the scan
+# finds nothing, and on some boots ueventd coldboot hasn't created the sg nodes
+# yet at `on init` time (~2 s; ueventd itself starts ~1.8 s and is still
+# processing seconds later). The first Weaver verify then livelocks in both
+# the gatekeeper HAL (userspace retry, ~85 % CPU) and qseecomd's RPMB thread
+# (~2.5k "invalid RPMB device" errors/s), with every SMC completing normally —
+# so no kernel bound can catch it. `on boot` fires after coldboot has drained,
+# still long before any PIN entry; keymaster/gatekeeper follow automatically
+# via vendor.sys.listeners.registered. Nothing consumes TEE earlier.
+on boot
     start vendor.qseecomd
 
 on boot
