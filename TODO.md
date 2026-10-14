@@ -98,12 +98,12 @@ transition. Full write-up + verification: [`docs/CE-REMOUNT-FIX.md`](docs/CE-REM
   `fscrypt_reload_de_keys`) and `libopenaes` in the ramdisk.
 - [ ] Carried over, still untested: encrypted-backup lock icon, LOS zip flash,
   sideload without the treble check, English-only UI / touch sanity.
-- [ ] Optional cleanup (contradicts the "patch the fork, not the build" rule):
-  the builder's "Patch upstream sources for new Clang" step still rewrites three
-  files inside `bootable/recovery` at build time (openaes `isaac/rand.h`/`rand.c`
-  prototypes, `twrpRepacker.cpp`, `gui/theme/portrait_hdpi/pages/advanced.xml`).
-  Those paths are inside our recovery fork, so the patches could move into the
-  fork itself. Verified they applied cleanly in R12.0_5 (no skip/error annotations).
+- [x] Moved the three build-time workarounds into the recovery fork
+  (`giou/Recovery@fox_16.0-apollon` `41e0acf5`): openaes K&R → ANSI prototypes,
+  repacker targets `/recovery` on slotless devices, manual reflash item
+  un-gated. The builder step now verifies them (and fails loud if a re-sync
+  loses one) instead of rewriting the tree. Same resulting bytes as R12.0_5,
+  so no device re-test is needed beyond the checklist above.
 
 ## Decrypt stall — ROOT CAUSE CONFIRMED (kernel, 2026-10-13)
 

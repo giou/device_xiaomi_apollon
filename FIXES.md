@@ -103,8 +103,21 @@ Repos involved:
   builder)*
 - **Magisk 31 bundled** as the addon (upstream ships an older one).
   *(tree: `fox_apollon.mk` + builder fetch)*
-- **Kernel / dtb / dtbo are extracted (not built) from the LOS 24 boot image**,
-  keeping them byte-identical to LineageOS. *(builder)*
+- **dtb / recovery_dtbo are extracted (not built) from the LOS 24 boot image**,
+  keeping them byte-identical to LineageOS; the kernel itself is built from our
+  fork — see [Kernel](#kernel). *(builder)*
+- **Three upstream workarounds live in the recovery fork**, not in the build:
+  openaes `isaac` used K&R prototypes/definitions with the parameters commented
+  out (`void randinit(/*_ randctx *r, word flag _*/);`), which `clang-r547379`
+  rejects with "too many arguments to function call"; `twrpRepacker.cpp` only
+  switched its target to `/recovery` when the device was slotted, so a slotless
+  A-only device like apollon repacked into **BOOT** (confirmed: `sde50` written
+  twice, MI-logo bootloop); and the manual "Flash current OrangeFox" item in
+  `advanced.xml` required `tw_has_boot_slots=1`, which only holds with
+  `AB_OTA_UPDATER`, hiding the button entirely on A-only devices. The builder
+  step that used to sed these in now only **verifies** them and fails loud if a
+  re-sync or force-push loses one. *(fork: `giou/Recovery@fox_16.0-apollon`
+  `41e0acf5`)*
 
 ## Hardware HALs
 
