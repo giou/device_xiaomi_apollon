@@ -9,7 +9,7 @@
 # well-known LUs (RPMB is one of them) on this SoC/driver, created in the same
 # coldboot burst. Bound 100 x 0.2 s = 20 s, then give up and let the start
 # proceed anyway (today's behavior - never worse, never hangs boot).
-# Invoked from init.recovery.qcom.rc as: exec /system/bin/sh <this script>.
+# Invoked from start_qseecomd.sh, the vendor.qseecomd service wrapper.
 i=0
 # Verdict goes to /dev/kmsg (readable from dmesg when the script is run by hand)
 # and to /tmp/wait_sg_rpmb.log. The file matters because init's `exec` sends the
