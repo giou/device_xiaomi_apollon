@@ -262,6 +262,39 @@ sign that encryption was off.
 The single-thread setting is a **working workaround, not a root cause**, and
 restore of that backup is **not yet verified**.
 
+### Forensic route: malloc debug, no build needed
+
+The crash is in the threaded encryption stage, so the diagnostic build (which
+cannot crash) is not the tool. Malloc debug probes it without any build:
+
+- The library libc loads lives in the runtime APEX of the installed ROM:
+  `/apex/com.android.runtime/lib64/libc_malloc_debug.so` (642 KB on the LOS 24
+  build tested 2026-10-15). It is **not** in the recovery ramdisk, so it must be
+  pushed there; the ramdisk is a tmpfs, so it disappears at reboot and nothing
+  persists.
+- libc reads the env var `LIBC_DEBUG_MALLOC_OPTIONS` first, else the property
+  `libc.debug.malloc.options`; then `dlopen("libc_malloc_debug.so")`. A missing or
+  mismatched library **fails open** with one logcat line
+  (`Unable to open shared library …` / `… routine not found …`), leaving scudo in
+  place - so the probe cannot break the recovery.
+- The property must be set before the target process starts, so the `recovery`
+  service has to be restarted for the backup to run under it (the env var cannot
+  reach an init-started service).
+- The report goes to **logcat** (`malloc_debug` tag), which is where the log
+  collector already looks, so this replaces the crash_dump64/tombstoned route
+  entirely.
+
+Options used: `verbose backtrace guard free_track verify_pointers abort_on_error`.
+`guard` puts 0xaa/0xbb guards around every allocation and checks them at free;
+`backtrace` attaches the allocation site; `free_track` records the free
+backtrace. Given scudo's message ("memory corruption **or a double free**"), the
+free_track/verify_pointers pair is the one most likely to name the caller.
+
+Needs the **threaded** build, i.e. R12.0_8 as published (the currently flashed
+diagnostic build cannot crash). Heisenbug risk: a debug allocator changes timing,
+so a non-reproduction means lightening the options, not that the bug is gone.
+
+
 
 - [ ] Any **tar + encryption** backup dies in the backup child:
   `scudo: Scudo ERROR: corrupted chunk header … memory corruption or a double free` →
