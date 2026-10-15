@@ -237,3 +237,74 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
   actually written into the ramdisk (`dev="rootfs"` in the avc record) — it will
   not survive a reboot. **Verified as-documented 2026-10-14 (R12.0_7): pulled
   pre-reboot via `adb pull`, PNG opens fine.** Cosmetic; unrelated to the stall.
+
+## Open bug: encrypted backups abort with heap corruption (R12.0_8) — BLOCKING
+
+- [ ] Any **tar + encryption** backup dies in the backup child:
+  `scudo: Scudo ERROR: corrupted chunk header … memory corruption or a double free` →
+  `Fatal signal 6 (SIGABRT)` (in the forked backup child) →
+  `createTarFork() process ended with signal: 6` → `Backup Failed. Cleaning Backup Folder.`
+  No write error, no USB event, and the target is irrelevant.
+- [x] Reproduced twice, both `/data` only, both ~5 min in: to the OTG drive (2026-10-15
+  05:19, compression OFF) and to Internal Storage (06:21, compression ON — confirmed).
+- [x] Narrowed: **dd + encryption is fine** — `/boot` and `/super` are dd images
+  (`boot.emmc.win`), not tar, so their clean runs never tested this path. Plain
+  (unencrypted) `/data` tar works (13 archives, 1405 s), compression-only works. Only the
+  encrypted *tar* path fails.
+- [x] Shape of the failing path: phase 1 writes the plain archives single-threaded
+  (`Thread id 0 tarList done, 5 archives`), then phase 2 starts `core_count` = 8 threads,
+  one archive each (`win100…win800`), each forking its own `openaes` and writing a tar
+  stream through a pipe (`write_tar_no_buffer`, `tarWrite.c`). Crash is always inside
+  phase 2. `/super` is one file, `/data` is ~200k.
+- [ ] In flight: `/data` **compression ON, encryption OFF** (single thread + pigz: uses the
+  same no-buffer/pipe/fork machinery without the 8 threads) — separates the write path from
+  the threading.
+- [ ] Next build: `core_count = 1` for encrypted backups. Safe by construction — the list
+  division (`target_size = encrypt_size / core_count`) and the thread loop both follow
+  `core_count`, so every file still lands in thread 1's list. Localises it and is a
+  candidate workaround.
+- [ ] If it survives a single thread, the next lever is a backtrace: recovery ships no
+  `crash_dump` helper (`failed to exec crash_dump helper: No such file or directory`), so
+  push `crash_dump64` plus its libs from the ROM into the ramdisk and let the abort dump a
+  tombstone.
+- [ ] Sampler note: the first attempt produced no data (my bug — `grep -E "a|b"` inside a
+  quoted adb shell string; the `|` was parsed by the device shell). Fixed version uses one
+  adb call per value, nothing piped or quoted device-side.
+
+## Open bug: production kernel prints the DEBUG-kernel notice
+
+```
+** trace_printk() being used. Allocating extra memory.  **
+** This means that this is a DEBUG kernel and it is     **
+** unsafe for production use.                           **
+```
+
+- Cause: `CONFIG_FTRACE`/`CONFIG_TRACING` are on. `CONFIG_DEBUG_KERNEL` is default-y in the
+  kernel's own Kconfig and FTRACE depends on it; our merged fragments add **no** tracing
+  symbol, so a stock LineageOS build of this kernel prints the same notice. It appears the
+  first time an upstream `trace_printk()` call site runs — there are 13 in the tree — and the
+  trace core then allocates the extra buffers the notice warns about.
+- [ ] Production fix: add a build fragment with `CONFIG_FTRACE=n`. With tracing off,
+  `trace_printk()` compiles to nothing, so both the notice and the buffer disappear. Add a
+  fail-loud assert next to the existing LTO/CFI ones so a future defconfig bump cannot
+  silently re-enable it. **Do not** patch the call site — the kernel fork stays pristine.
+- Recovery needs no tracing: the stall work used `dmesg` and SysRq only.
+
+## Fixed in the fork, pending your next build (device test)
+
+- [ ] **Passwords**: the backup, verify and restore fields silently dropped every character
+  outside `[A-Za-z0-9_]` (your `++++++++1234` / `1234` match proved it) and converted a space
+  to `_`. They now accept all printable ASCII. `Recovery-fork b5b6af9e`
+- [ ] **Names**: the Nandroid name, auto-name, rename-backup and the file-manager
+  mkdir/rename/copy fields dropped ~30 symbols silently, and `<restrict disable="1"/>` on the
+  name fields meant "reject the character `1`" — a `1` could not be typed in a backup name.
+  They now accept all printable except `'` and `/`. `Recovery-fork 29f5221c`
+- [ ] **Shell safety**: password and filenames in the size probes are now escaped for
+  `/bin/sh`; the theme's delete-backup and rename-backup commands were double-quoted and are
+  now single-quoted (a `$` or backtick in a backup name was expanded there, and a backtick
+  ran as root). `29f5221c`
+- [ ] **`openaes` CLI**: a password of exactly `--in`/`--out` aborted the helper, and `--ecb`
+  silently switched the cipher to ECB. Both fixed. `b5b6af9e`
+- [ ] Known remaining limit: `'` cannot be typed in a *name* field. The theme language has no
+  escape function and ~20 built-in actions single-quote the value. To lift it, either add an
+  escaping action (~20-30 lines in `gui/action.cpp`) or move those file operations into C++.
