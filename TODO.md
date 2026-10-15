@@ -77,11 +77,15 @@ transition.
 
 ## Build R12.0_8 (pending) — sg-poll gate for qseecomd start (stall prevention, v2)
 
-- [ ] Boot time not regressed (poll returns instantly on normal boots; the 20 s bound only fires on broken UFS).
+- [x] Boot time not regressed: the R12.0_8 device session (2026-10-15) shows
+  qseecomd acquiring `/dev/sg1` in the same ~2 s window as before, and the boot
+  was normal. How many tries the poll took is still uncaptured — see
+  `docs/DECRYPT-STALL.md` §Validation for how to read it (early, and from
+  `dmesg` only).
 - [x] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin` (with kmsg lines), `on boot` runs exec-then-start in the shipped init rc (verified in image).
-- [ ] Stall-rate validation over subsequent decrypts: run the `docs/DECRYPT-STALL.md` §Validation steps each boot (gate verdict, RPMB count, sg fd); the bar is ~30 clean runs. A recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
+- [ ] Stall-rate validation over subsequent decrypts: run the `docs/DECRYPT-STALL.md` §Validation steps each boot (gate verdict, RPMB count, sg fd); the bar is ~30 clean runs. A recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case. Count so far: **1** clean (2026-10-15, PIN decrypt, 0 RPMB lines) — that boot's gate verdict was not captured.
 - [x] Release title carries `(R12.0_8)` (confirmed: `OrangeFox Recovery for apollon // 20261015 (R12.0_8)`). Assets renamed in place to `OrangeFox-R12.0_8-Unofficial-apollon.*` (hash-verified copies, old names deleted); future runs rename at build time via the workflow step.
-- [ ] CI shakedown run `38652501708` (tree `13183d5`, version kept at `R12.0_8`): confirm asset rename, Magisk checksum, action pins, corrected release notes. **Delete the release and its tag once green** - the image is functionally identical to R12.0_8, so do not keep it.
+- [x] CI shakedown run `38652501708` (tree `13183d5`, version kept at `R12.0_8`): green, all 16 steps. Rename proved (`OrangeFox-R12.0-Unofficial-apollon.*` → `OrangeFox-R12.0_8-Unofficial-apollon.*`, old names gone), Magisk zip `sha256 …d4e8` OK, pinned actions resolved, corrected notes matched the published release except the built-commit line. Release and run-ID tag deleted 2026-10-15 — the device-tested artifact (tag `38604355666`) stays and is `latest`.
 
 ## Build R12.0_7 (retry; first attempt cancelled at kernel step) — qseecomd late-start + pristine kernel + remount v3
 
@@ -92,8 +96,10 @@ transition.
 - [x] Pristine kernel regression check: banner `R12.0_7` (image), boots,
   decrypts repeatedly on device 2026-10-14 (PIN + both remount sessions);
   no `returned INTERRUPTED` string in the image (patch gone by design).
-- [ ] Stall-rate validation over subsequent decrypts (was ~1 in 5–10). A
-  recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case.
+- [x] Stall-rate validation (SUPERSEDED — moved to the R12.0_8 section in this
+  file): the `on boot` trigger move bought only 36 ms, so the gate replaced it
+  before the count restarted. A recurrence with `ls /dev/sg*` + qseecomd fd
+  data reopens the case.
 - [x] Release title carries `(R12.0_7)` (confirmed: `OrangeFox Recovery for apollon // 20261014 (R12.0_7)`).
 - [x] Remount with vold v3 (`2728d08`): untick→tick shows `rebuilding…` →
   `device key re-installed` → `DE/CE keys re-installed` → `keyring rebuilt`,
