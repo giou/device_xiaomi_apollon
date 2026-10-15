@@ -198,6 +198,35 @@ Run this after the recovery boots, and read it early:
 adb shell dmesg | grep wait_sg_rpmb
 ```
 
+### Seeing the gate without the breadcrumb
+
+The gate's own lines are mute on device: init's `exec` sends the command's
+stdout/stderr to `/dev/null`, so if the `> /dev/kmsg` redirect fails in that
+context it fails silently. The script itself is fine - run by hand from an adb
+shell it prints, and `ready after 0 tries` is normal.
+
+The gate's *effect* is still visible in `dmesg`, because the `on boot` block
+that follows it starts the vibrator service:
+
+    on boot
+        exec /system/bin/sh /system/bin/wait_sg_rpmb.sh
+        start vendor.qseecomd
+    on boot
+        start health-hal-2-1
+        start vendor.qti.vibrator        <- first avc line lands ~t=2.04 s
+        setprop sys.usb.config adb
+
+So take the timestamp of the first `vibrator.IVibrator` avc line in `dmesg`:
+
+- ~2.04 s: N = 0, the nodes were ready, the gate cost nothing (measured
+  2026-10-15: vibrator 2.0408 s, qseecomd's first `sg` access 2.0725 s).
+- 0.2 s per try later: the gate waited N tries - a boot where the old code
+  would have let qseecomd scan too early. This is the evidence that the gate
+  stopped the race on that boot.
+- ~22 s: the gate hit its 20 s bound (`TIMEOUT`).
+
+No code change needed; grep the boot's `dmesg` for that line.
+
 Two limits. The script writes to `/dev/kmsg` only, so the OrangeFox console log
 (`/tmp/recovery.log`) never carries these lines - the console has no kernel
 lines at all. And the kernel ring buffer drops the oldest lines as new ones
