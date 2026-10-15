@@ -242,6 +242,27 @@ Full dossier: [`docs/DECRYPT-STALL.md`](docs/DECRYPT-STALL.md).
 
 ## Open bug: encrypted backups abort with heap corruption (R12.0_8) — BLOCKING
 
+**RESULT 2026-10-15 (verified on device, build 38690605691):** the trigger is the
+multi-threaded encryption stage. With `core_count = 1`, encryption ON and
+compression OFF, `/data` completed: `[BACKUP COMPLETED IN 894 SECONDS]`, the log
+shows `Core Count      : 1`, and there are **0** `Scudo ERROR` / `Fatal signal` /
+`signal: 6` / `createTarFork` lines. The sampler shows exactly **one openaes at a
+time** (51 of 63 samples, 0 before the phase started) where the failing runs had
+8, with RSS 120 -> 152 MB, fds 56 -> 57 and threads 7 -> 8 (no leak). Output: 7
+archives (`data.f2fs.win000..win005`, `win100`) each with a `.sha2`, plus
+`data.info`; 0 `invalid RPMB` lines. Only two `E:` lines, both MTP/USB noise.
+
+So it is the concurrency in phase 2 (one `openaes` fork per thread writing
+through its own pipe), not openaes alone, not the pipe/no-buffer write path
+(compression-only with encryption OFF passes), and not the threaded plain path.
+`Creating unencrypted backup...` in the log is the expected first stage - phase 1
+writes plain archives and phase 2 encrypts them in place - so that line is not a
+sign that encryption was off.
+
+The single-thread setting is a **working workaround, not a root cause**, and
+restore of that backup is **not yet verified**.
+
+
 - [ ] Any **tar + encryption** backup dies in the backup child:
   `scudo: Scudo ERROR: corrupted chunk header … memory corruption or a double free` →
   `Fatal signal 6 (SIGABRT)` (in the forked backup child) →
