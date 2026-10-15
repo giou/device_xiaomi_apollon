@@ -198,71 +198,39 @@ Run this after the recovery boots, and read it early:
 adb shell dmesg | grep wait_sg_rpmb
 ```
 
-### Seeing the gate without the breadcrumb
+### Gate visibility (measured 2026-10-15, build 38690605691)
 
-The gate writes its verdict twice: to `/dev/kmsg` and to
-`/tmp/wait_sg_rpmb.log`. The file is the one to read. The kmsg lines are mute
-when init runs the script - init's `exec` sends the command's stdout/stderr to
-`/dev/null`, so a failing redirect is silent (measured 2026-10-15: the gate ran
-on every boot, proven by qseecomd's start point, yet never appeared in dmesg).
-Run by hand from an adb shell the kmsg lines do appear, and `ready after 0
-tries` is normal.
+The gate's verdict is unobservable when init runs the script. Evidence:
 
-    adb shell cat /tmp/wait_sg_rpmb.log
+- The gate writes to `/dev/kmsg` and to `/tmp/wait_sg_rpmb.log`. Neither has
+  ever contained its lines.
+- `/tmp` is real and reachable: the platform rc mounts it at `on init`
+  (`mount tmpfs tmpfs /tmp`, `chmod 0775`, `chown root:shell`), and
+  `ls -l /proc/1/root/tmp` shows init's own view full of TWRP's live files.
+  No `wait_sg_rpmb.log` is in it - so the boot-time write genuinely does not
+  happen. This is file evidence, not a log inference.
+- The same script run by hand from an adb shell writes the file correctly:
+  exit 0, both lines present. So the script and the sink are fine.
+- `vendor.qseecomd` appears in exactly one file in the entire ramdisk, this
+  tree's `init.recovery.qcom.rc`, and the service is `disabled`. Since it runs,
+  the `exec` in that same `on boot` block does execute - the line is not
+  skipped. Its child simply cannot write either sink.
+- `/tmp` is `0775 root:shell` and `/dev/kmsg` is `0600 root`, so a child that is
+  neither root nor group shell fails both - and init sends an exec'd command's
+  stdout/stderr to `/dev/null`, so the shell's error messages vanish. Running
+  the script by hand works because the adb shell is root.
 
-`/tmp` lasts until the device restarts recovery; the log collector copies the
-file into its pulled folder on every run.
+Do not read the gate's state out of `dmesg` either: init's INFO lines are
+rate-limited in this boot (`N output lines suppressed due to ratelimiting`), so a
+missing init line is not evidence about what ran.
 
-The block's other effect is visible in `dmesg` too, which is useful when the
-file is gone:
+The earlier proxy suggestion (the vibrator service's avc timestamp) is invalid:
+`class_start hal` lives in the platform rc's own `on boot`, so the vibrator
+would come up at that time whether or not this tree's gate ran.
 
-The gate's *effect* is still visible in `dmesg`, because the `on boot` block
-that follows it starts the vibrator service:
-
-    on boot
-        exec /system/bin/sh /system/bin/wait_sg_rpmb.sh
-        start vendor.qseecomd
-    on boot
-        start health-hal-2-1
-        start vendor.qti.vibrator        <- first avc line lands ~t=2.04 s
-        setprop sys.usb.config adb
-
-So take the timestamp of the first `vibrator.IVibrator` avc line in `dmesg`:
-
-- ~2.04 s: N = 0, the nodes were ready, the gate cost nothing (measured
-  2026-10-15: vibrator 2.0408 s, qseecomd's first `sg` access 2.0725 s).
-- 0.2 s per try later: the gate waited N tries - a boot where the old code
-  would have let qseecomd scan too early. This is the evidence that the gate
-  stopped the race on that boot.
-- ~22 s: the gate hit its 20 s bound (`TIMEOUT`).
-
-No code change needed; grep the boot's `dmesg` for that line.
-
-Two limits. The script writes to `/dev/kmsg` only, so the OrangeFox console log
-(`/tmp/recovery.log`) never carries these lines - the console has no kernel
-lines at all. And the kernel ring buffer drops the oldest lines as new ones
-arrive: the 2026-10-15 capture had already lost everything before t=9.4 s, so a
-dump taken tens of minutes into a session may no longer show the gate. Absent
-lines are therefore not proof that the gate did not run.
-
-A boot where the gate ran shows two lines:
-
-```
-wait_sg_rpmb: waiting for sg0 sg1 sg2
-wait_sg_rpmb: ready after N tries
-```
-
-- `N = 0`: the sg nodes already existed. The poll cost about 0 ms. Normal.
-- `N` above 0: coldboot was still running, so the gate waited. On such a
-  boot the old code would have started qseecomd early and latched "invalid
-  RPMB device". This is direct proof that the gate stopped the race on that
-  boot.
-- `wait_sg_rpmb: TIMEOUT, proceeding anyway`: the gate hit its 20 s bound and
-  qseecomd started with no gate. The protection did **not** apply. Capture the
-  logs and treat that boot as a near-miss.
-
-The rc runs the script with `exec` before `start vendor.qseecomd`, and `exec`
-blocks. So the start cannot happen before the script exits.
+Fix (pending build): start qseecomd through a wrapper script so the gate runs as
+part of the `vendor.qseecomd` service, which this rc declares `user root`. The
+gate can then not be skipped, and both sinks become writable.
 
 ### 2. RPMB was acquired
 
