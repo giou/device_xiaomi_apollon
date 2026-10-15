@@ -11,14 +11,24 @@
 # proceed anyway (today's behavior - never worse, never hangs boot).
 # Invoked from init.recovery.qcom.rc as: exec /system/bin/sh <this script>.
 i=0
-echo "wait_sg_rpmb: waiting for sg0 sg1 sg2" > /dev/kmsg
+# Verdict goes to /dev/kmsg (readable from dmesg when the script is run by hand)
+# and to /tmp/wait_sg_rpmb.log. The file matters because init's `exec` sends the
+# command's stdout/stderr to /dev/null, so a failing kmsg redirect is silent -
+# measured on 2026-10-15: the gate ran every boot (proven by qseecomd's start
+# point) yet never appeared in dmesg. /tmp survives the session, and the log
+# collector pulls the file out.
+say() {
+    echo "wait_sg_rpmb: $1" > /dev/kmsg
+    echo "wait_sg_rpmb: $1" >> /tmp/wait_sg_rpmb.log
+}
+say "waiting for sg0 sg1 sg2"
 while [ $i -lt 100 ]; do
     if [ -e /dev/sg0 ] && [ -e /dev/sg1 ] && [ -e /dev/sg2 ]; then
-        echo "wait_sg_rpmb: ready after $i tries" > /dev/kmsg
+        say "ready after $i tries"
         exit 0
     fi
     sleep 0.2
     i=$((i + 1))
 done
-echo "wait_sg_rpmb: TIMEOUT, proceeding anyway" > /dev/kmsg
+say "TIMEOUT, proceeding anyway"
 exit 1
