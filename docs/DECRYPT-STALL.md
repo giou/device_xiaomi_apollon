@@ -200,7 +200,7 @@ adb shell dmesg | grep wait_sg_rpmb
 
 ### Gate visibility (measured 2026-10-15, build 38690605691)
 
-The gate's verdict is unobservable when init runs the script. Evidence:
+The gate's verdict was unobservable when init ran the script (fixed - see the end of this section). Evidence:
 
 - The gate writes to `/dev/kmsg` and to `/tmp/wait_sg_rpmb.log`. Neither has
   ever contained its lines.
@@ -220,17 +220,22 @@ The gate's verdict is unobservable when init runs the script. Evidence:
   stdout/stderr to `/dev/null`, so the shell's error messages vanish. Running
   the script by hand works because the adb shell is root.
 
-Do not read the gate's state out of `dmesg` either: init's INFO lines are
-rate-limited in this boot (`N output lines suppressed due to ratelimiting`), so a
-missing init line is not evidence about what ran.
+Do not read the gate's state out of *init's* `dmesg` lines: init's INFO output is
+rate-limited (`N output lines suppressed due to ratelimiting`), so a missing init
+line says nothing. The gate's own kmsg lines are written straight to `/dev/kmsg`
+and are not subject to that, so from the wrapper build on the step-1 grep is
+authoritative.
 
 The earlier proxy suggestion (the vibrator service's avc timestamp) is invalid:
 `class_start hal` lives in the platform rc's own `on boot`, so the vibrator
 would come up at that time whether or not this tree's gate ran.
 
-Fix (pending build): start qseecomd through a wrapper script so the gate runs as
-part of the `vendor.qseecomd` service, which this rc declares `user root`. The
-gate can then not be skipped, and both sinks become writable.
+Fixed: qseecomd now starts through `start_qseecomd.sh`, which runs the gate and
+then `exec`s qseecomd in the same pid, so the gate runs as the `vendor.qseecomd`
+service (`user root`) instead of via init's `exec` builtin. Both sinks are
+writable, the gate cannot be skipped, and `stop vendor.qseecomd` / pidof / the
+TEE cleanup still act on one process. Expect `wait_sg_rpmb: ready after N tries`
+in the step-1 `dmesg` grep above.
 
 ### 2. RPMB was acquired
 
