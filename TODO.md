@@ -77,10 +77,10 @@ transition.
 
 ## Build R12.0_8 (pending) — sg-poll gate for qseecomd start (stall prevention, v2)
 
-- [x] Boot time not regressed: the R12.0_8 device session (2026-10-15) shows
-  qseecomd acquiring `/dev/sg1` in the same ~2 s window as before, and the boot
-  was normal. How many tries the poll took is still uncaptured — see
-  `docs/DECRYPT-STALL.md` §Validation for how to read it (early, and from
+- [x] Boot time not regressed: the R12.0_8 device session (2026-10-15) booted
+  normally, recovery came up in the usual few seconds, and qseecomd acquired
+  `/dev/sg1` early — no boot delay. How many tries the poll took is still
+  uncaptured — see `docs/DECRYPT-STALL.md` §Validation (read it early, and from
   `dmesg` only).
 - [x] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin` (with kmsg lines), `on boot` runs exec-then-start in the shipped init rc (verified in image).
 - [ ] Stall-rate validation over subsequent decrypts: run the `docs/DECRYPT-STALL.md` §Validation steps each boot (gate verdict, RPMB count, sg fd); the bar is ~30 clean runs. A recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case. Count so far: **1** clean (2026-10-15, PIN decrypt, 0 RPMB lines) — that boot's gate verdict was not captured.
