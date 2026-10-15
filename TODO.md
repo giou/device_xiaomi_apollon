@@ -377,3 +377,33 @@ so a non-reproduction means lightening the options, not that the bug is gone.
 - [ ] Known remaining limit: `'` cannot be typed in a *name* field. The theme language has no
   escape function and ~20 built-in actions single-quote the value. To lift it, either add an
   escaping action (~20-30 lines in `gui/action.cpp`) or move those file operations into C++.
+
+## Theme / character-restriction notes (resolved 2026-10-15)
+
+`TW_THEME := portrait_hdpi` (BoardConfig.mk:236), and the ramdisk's
+`/twres/pages/backup.xml` is **byte-identical to the pre-fix**
+`gui/theme/portrait_hdpi/pages/backup.xml` - so the theme the escaping fix edits is
+the default one that ships, not an unused older one. Do not revert it on the
+assumption that it is unused.
+
+What the shipped XML actually restricts:
+
+| Node (shipped backup.xml) | Restriction | Typing behaviour |
+|---|---|---|
+| line 127-128, `tw_backup_name` on the New Backup page (rendered as text) | `<restrict disable="1"/>` | blacklist of the char `1`; the value is normally set by code |
+| line 297-298, `tw_backup_name` on the Backup Name screen - **the editable one** | `allow="a-zA-Z0-9-_.{}[]"` | digits yes, `+` and ~25 symbols silently dropped |
+| line 388-389, third name node | `<restrict minlen="0" maxlen="64" disable="1"/>` | as above |
+| lines 457-458 / 523-524, `tw_backup_password{,2}` | `allow="a-zA-Z0-9_"`, space becomes `_` | symbols dropped |
+
+On-device confirmation: on R12.0_8 the editable name field refuses `+` - which is
+exactly the whitelist at line 297 and exactly the bug the fix widens. So the A/B is:
+`+` in that field (rejected on the shipped build, accepted once the fixed build is
+flashed), and `!@#$%^&*` plus a space in the password field.
+
+Still unproven and not to be repeated as fact: that `<restrict disable="1"/>` stops
+you typing a `1`. That node renders the name as text on the New Backup page; the
+field a user actually edits is the whitelisted one at line 297. `gui/input.cpp`
+(`GUIInput::NotifyCharInput`) treats `allow` as a whitelist and `disable` as a
+blacklist and only ever rejects, so the claim is not contradicted by the source -
+but it has never been observed on a field that is typed into, and should not be
+quoted again until it is.
