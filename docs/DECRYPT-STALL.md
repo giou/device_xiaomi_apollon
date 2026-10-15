@@ -192,11 +192,18 @@ boots. Prove the fix in three steps.
 
 ### 1. The gate ran
 
-Run this after the recovery boots:
+Run this after the recovery boots, and read it early:
 
 ```sh
 adb shell dmesg | grep wait_sg_rpmb
 ```
+
+Two limits. The script writes to `/dev/kmsg` only, so the OrangeFox console log
+(`/tmp/recovery.log`) never carries these lines - the console has no kernel
+lines at all. And the kernel ring buffer drops the oldest lines as new ones
+arrive: the 2026-10-15 capture had already lost everything before t=9.4 s, so a
+dump taken tens of minutes into a session may no longer show the gate. Absent
+lines are therefore not proof that the gate did not run.
 
 A boot where the gate ran shows two lines:
 
