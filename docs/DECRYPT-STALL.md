@@ -200,10 +200,21 @@ adb shell dmesg | grep wait_sg_rpmb
 
 ### Seeing the gate without the breadcrumb
 
-The gate's own lines are mute on device: init's `exec` sends the command's
-stdout/stderr to `/dev/null`, so if the `> /dev/kmsg` redirect fails in that
-context it fails silently. The script itself is fine - run by hand from an adb
-shell it prints, and `ready after 0 tries` is normal.
+The gate writes its verdict twice: to `/dev/kmsg` and to
+`/tmp/wait_sg_rpmb.log`. The file is the one to read. The kmsg lines are mute
+when init runs the script - init's `exec` sends the command's stdout/stderr to
+`/dev/null`, so a failing redirect is silent (measured 2026-10-15: the gate ran
+on every boot, proven by qseecomd's start point, yet never appeared in dmesg).
+Run by hand from an adb shell the kmsg lines do appear, and `ready after 0
+tries` is normal.
+
+    adb shell cat /tmp/wait_sg_rpmb.log
+
+`/tmp` lasts until the device restarts recovery; the log collector copies the
+file into its pulled folder on every run.
+
+The block's other effect is visible in `dmesg` too, which is useful when the
+file is gone:
 
 The gate's *effect* is still visible in `dmesg`, because the `on boot` block
 that follows it starts the vibrator service:
