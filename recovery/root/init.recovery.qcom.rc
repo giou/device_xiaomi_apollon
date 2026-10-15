@@ -61,12 +61,12 @@ on fs
 # so no kernel bound can catch it. Trigger tricks alone do NOT work: `on boot`
 # fires ~2 s in this recovery, 36 ms after the old `on init` start (proven on
 # R12.0_7: sg scan at t=2.054 s vs 2.018 s before). So gate on readiness with
-# a bounded poll below instead. Timeout falls through to the start (today's
-# behavior, never worse, never hangs boot). Keymaster/gatekeeper follow
+# a bounded poll instead. qseecomd is started through start_qseecomd.sh, which
+# runs the poll as this service (user root) and then execs qseecomd; the timeout
+# falls through to the start (today's behavior, never worse, never hangs boot). Keymaster/gatekeeper follow
 # automatically via vendor.sys.listeners.registered. Nothing consumes TEE
 # earlier than decrypt, which is minutes out.
 on boot
-    exec /system/bin/sh /system/bin/wait_sg_rpmb.sh
     start vendor.qseecomd
 
 on boot
@@ -89,7 +89,7 @@ on property:twrp.all.users.decrypted=true
     stop gatekeeper-1-0
     stop keymaster-4-0
 
-service vendor.qseecomd /vendor/bin/qseecomd
+service vendor.qseecomd /system/bin/start_qseecomd.sh
     user root
     group root
     disabled
