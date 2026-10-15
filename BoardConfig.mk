@@ -216,6 +216,17 @@ TW_INCLUDE_CRYPTO_FBE := true
 TW_INCLUDE_FBE_METADATA_DECRYPT := true
 TW_USE_FSCRYPT_POLICY := 1
 
+# OrangeFox's soong modules take their flags from the "twrpVarsPlugin" soong
+# config namespace (libaosprecovery_defaults in bootable/recovery). Nothing
+# declared it here, so libvold - a soong module - never saw
+# TW_USE_FSCRYPT_POLICY and compiled the v2 fscrypt policy branch while libtar
+# (Make) compiled v1; fscrypt_policy_get_struct() then memset 24 bytes into the
+# 12-byte struct libtar had allocated, corrupting the heap on every encrypted
+# backup. Declaring the variable here makes the intended bridge work.
+SOONG_CONFIG_NAMESPACES += twrpVarsPlugin
+SOONG_CONFIG_twrpVarsPlugin += TW_USE_FSCRYPT_POLICY
+SOONG_CONFIG_twrpVarsPlugin_TW_USE_FSCRYPT_POLICY := $(TW_USE_FSCRYPT_POLICY)
+
 # Network
 BUILD_BROKEN_USES_NETWORK := true
 
