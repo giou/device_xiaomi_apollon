@@ -291,7 +291,20 @@ backtrace. Given scudo's message ("memory corruption **or a double free**"), the
 free_track/verify_pointers pair is the one most likely to name the caller.
 
 Needs the **threaded** build, i.e. R12.0_8 as published (the currently flashed
-diagnostic build cannot crash). Heisenbug risk: a debug allocator changes timing,
+diagnostic build cannot crash).
+
+**Verified on device 2026-10-15:** the APEX library (657368 bytes, pulled from
+`/apex/com.android.runtime/lib64/libc_malloc_debug.so` on the LOS 24 build) is
+ABI-compatible with the recovery ramdisk's libc. Pushed to
+`/system/lib64/libc_malloc_debug.so` and run with `LIBC_DEBUG_MALLOC_OPTIONS=verbose`,
+logcat shows `I malloc_debug: ls: malloc debug enabled` - so this route works and
+the blob is viable, not just theoretically.
+
+Quoting note for these probes: `adb shell` strips **inner** quotes, so a value
+with spaces must be escaped for the device shell:
+`.db.exe shell 'setprop libc.debug.malloc.options verbose\ backtrace\ guard'`
+and greps must avoid quoted patterns (`grep -i malloc`, not `grep -i "malloc debug"`).
+ Heisenbug risk: a debug allocator changes timing,
 so a non-reproduction means lightening the options, not that the bug is gone.
 
 
