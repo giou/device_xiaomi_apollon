@@ -262,6 +262,15 @@ sign that encryption was off.
 The single-thread setting is a **working workaround, not a root cause**, and
 restore of that backup is **not yet verified**.
 
+**FIX VERIFIED 2026-10-16 (on device, build 38839683143, 8 threads):** encrypted
+`/data`, compression OFF, `Core Count : 8` completed in 316 s with **0** Scudo /
+signal / `createTarFork` / `fscrypt policy size mismatch` lines. Phase 2 ran all
+8 openaes forks (sampler saw openaes=8) and produced 14 archives
+(`win000..win005`, `win100..win800`) with sha2 digests; only 2 `E:` lines, both
+MTP/USB noise; 0 `invalid RPMB` lines. The threaded encryption path that aborted
+twice before now passes - the v1/v2 struct mismatch was the corruption.
+
+
 ### Forensic route: malloc debug, no build needed
 
 The crash is in the threaded encryption stage, so the diagnostic build (which
