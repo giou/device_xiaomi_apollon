@@ -279,8 +279,8 @@ wrapper (`start_qseecomd.sh`, pid-preserving `exec`) is confirmed in the shipped
 ramdisk, and the TEE cleanup stopped qseecomd cleanly after decrypt (22.15s).
 0 `invalid RPMB` lines; decrypt-to-cleanup took ~80ms, no hesitation signature.
 
-Stall count: **7** clean boots with a PIN decrypt and zero RPMB lines, gate N=0
-on every boot where the verdict was readable. Still below the ~30 bar, and the
+Stall count: **8** clean boots with a PIN decrypt and zero RPMB lines (incl. the
+round-trip session), gate N=0 on every boot where the verdict was readable. Still below the ~30 bar, and the
 gate has never been observed waiting (N>0), so the prevention itself remains
 unobserved - but from this build on, any boot where it engages will say so in
 `dmesg`, no proxy needed.
