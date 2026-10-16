@@ -576,9 +576,20 @@ PM UIDs match data-dir owners (twitter 10229, termux 10207).
     blipped once under heavy IO but the engine-side operation ran to completion.
 - Flashing on the Linux PC: fastboot is dead against this bootloader from Linux
   (gadget crashes mid-download, both platform-tools 33 and 37 - full detail in
-  scripts/remote-access.md). Proven path: push the release zip and
-  `twrp install /sdcard/of.zip` from recovery, then sha256 the partition -
-  verified bit-exact on the last release (partition = 128 MiB exactly).
+  scripts/remote-access.md). Proven paths:
+  - Recovery zip + `twrp install /sdcard/of.zip` - works, BUT the OF installer
+    wipes the persisted settings every time (`FOX_RESET_SETTINGS="1"` is baked
+    into the generated update-binary by OF's build system - not exposed in the
+    fork or the device tree; `Reset_Settings` removes `Fox/.fox*`, `.theme`,
+    `.navbar` from sdcard+persist; `Fox/secrets.json` survives).
+  - **dd the img from recovery** (preferred, settings-preserving):
+    `dd if=/tmp/of.img of=/dev/block/by-name/recovery bs=4M; sync`, then sha256
+    the partition - verified bit-exact on wlan v2/v3 flows.
+- LOS wireless adb (2026-10-17): `setprop persist.adb.tcp.port 5555` (root)
+  survives reboot; the PC reaches the phone over the LAN
+  (`adb connect <phone-lan-ip>:5555`) alongside USB - so `adb reboot recovery`
+  and all Android-side control work with no cable. The phone's Tailscale node is
+  currently offline (relay-only when active); LAN is the working path.
 - Decrypt flake (found in /sdcard/Fox/logs archives): occasionally the first
   PIN decrypt dies with `GateKeeper response error` -> `Failed to decrypt user 0`;
   an immediate retry succeeds. Seen 10-15 19:42 and 20:18, 10-16 08:40 and 09:01 -
