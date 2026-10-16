@@ -85,7 +85,11 @@ transition.
 - [x] Artifact: `wait_sg_rpmb.sh` in ramdisk `system/bin` (with kmsg lines), `on boot` runs exec-then-start in the shipped init rc (verified in image).
 - [ ] Stall-rate validation over subsequent decrypts: run the `docs/DECRYPT-STALL.md` §Validation steps each boot (gate verdict, RPMB count, sg fd); the bar is ~30 clean runs. A recurrence with `ls /dev/sg*` + qseecomd fd data reopens the case. Running count in the section below (**9** as of 2026-10-16; started at 4 on 10-15 — with the old rate of 1 in 5, four clean runs were only ~41% likely by chance alone).
 - [x] The gate **runs** (proven 2026-10-15 on device): `start vendor.qseecomd` exists only in that block and qseecomd's first `sg` access lands at t=2.07 s; the following `on boot` block starts the vibrator service, up at t=2.04 s. But **its verdict is still unobservable** (measured 2026-10-15 on 38690605691): neither `/dev/kmsg` nor `/tmp/wait_sg_rpmb.log` ever contains its lines, while the identical script run by hand from an adb shell writes the file fine, and `/tmp` is confirmed real and reachable from init's namespace (`ls -l /proc/1/root/tmp` shows TWRP's live files, no gate file). The `exec` line does execute — `vendor.qseecomd` appears in exactly one file in the whole ramdisk (this tree's rc) and is `disabled`, yet it runs — so the exec'd child simply cannot write either sink (both are root-only-ish: `/tmp` 0775 root:shell, `/dev/kmsg` 0600 root) and init sends the child's stderr to `/dev/null`. Fixed for the next build: qseecomd starts through `start_qseecomd.sh` (gate, then `exec` qseecomd in the same pid), so the gate runs as the `vendor.qseecomd` service (`user root`) and both sinks are writable. Use the vibrator avc timestamp as the per-boot proxy: ~2.04 s means N=0; every 0.2 s later means the gate polled that many times, and ~22 s means it hit its bound. See §Validation.
-- [ ] Have not yet observed the gate **wait** (N > 0) on any boot, so the prevention itself is still unobserved: every boot so far had the nodes ready. Watch the proxy above; a boot where it slips is the direct proof.
+- [x] Gate **wait** OBSERVED 2026-10-16 (induced, not natural): with
+  `/dev/sg0 sg1 sg2` removed for ~6 s (qseecomd kept its existing fds), the gate
+  polled and logged `waiting for sg0 sg1 sg2` → `ready after 28 tries`
+  (≈0.2 s/try) the moment the nodes existed again - the prevention path works.
+  Natural boots remain N=0; the induction is the functional proof.
 - [x] Release title carries `(R12.0_8)` (confirmed: `OrangeFox Recovery for apollon // 20261015 (R12.0_8)`). Assets renamed in place to `OrangeFox-R12.0_8-Unofficial-apollon.*` (hash-verified copies, old names deleted); future runs rename at build time via the workflow step.
 - [x] CI shakedown run `38652501708` (tree `13183d5`, version kept at `R12.0_8`): green, all 16 steps. Rename proved (`OrangeFox-R12.0-Unofficial-apollon.*` → `OrangeFox-R12.0_8-Unofficial-apollon.*`, old names gone), Magisk zip `sha256 …d4e8` OK, pinned actions resolved, corrected notes matched the published release except the built-commit line. Release and run-ID tag deleted 2026-10-15 — the device-tested artifact (tag `38604355666`) stays and is `latest`.
 
@@ -279,7 +283,7 @@ wrapper (`start_qseecomd.sh`, pid-preserving `exec`) is confirmed in the shipped
 ramdisk, and the TEE cleanup stopped qseecomd cleanly after decrypt (22.15s).
 0 `invalid RPMB` lines; decrypt-to-cleanup took ~80ms, no hesitation signature.
 
-Stall count: **9** clean boots (9th, 2026-10-16 evening: gate `ready after 0 tries` at t=1.98s, first-try decrypt, 0 RPMB lines) with a PIN decrypt and zero RPMB lines (incl. the
+Stall count: **13** clean boots (9th-13th, 2026-10-16 evening: five recovery boots, gate `ready after 0 tries` at ~t=2.0s each, first-try decrypts, 0 RPMB lines) with a PIN decrypt and zero RPMB lines (incl. the
 round-trip session), gate N=0 on every boot where the verdict was readable. Still below the ~30 bar, and the
 gate has never been observed waiting (N>0), so the prevention itself remains
 unobserved - but from this build on, any boot where it engages will say so in
