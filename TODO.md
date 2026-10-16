@@ -415,9 +415,11 @@ so a non-reproduction means lightening the options, not that the bug is gone.
   ran as root). `29f5221c`
 - [ ] **`openaes` CLI**: a password of exactly `--in`/`--out` aborted the helper, and `--ecb`
   silently switched the cipher to ECB. Both fixed. `b5b6af9e`
-- [ ] Known remaining limit: `'` cannot be typed in a *name* field. The theme language has no
-  escape function and ~20 built-in actions single-quote the value. To lift it, either add an
-  escaping action (~20-30 lines in `gui/action.cpp`) or move those file operations into C++.
+- [x] DECISION 2026-10-16 (user): leave as-is — `'` stays rejected in name
+  fields and is documented behavior, not a bug. If it is ever wanted: the theme
+  language has no escape function and ~20 built-in actions single-quote the
+  value; lift it either with an escaping action (~20-30 lines in
+  `gui/action.cpp`) or by moving those file operations into C++.
 
 ## Theme / character-restriction notes (resolved 2026-10-15)
 
