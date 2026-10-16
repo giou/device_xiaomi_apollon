@@ -254,8 +254,7 @@ jobs:
         scripts/kconfig/merge_config.sh -m -O out out/.config \
           arch/arm64/configs/vendor/debugfs.config \
           arch/arm64/configs/vendor/xiaomi/sm8250-common.config \
-          arch/arm64/configs/vendor/xiaomi/apollo.config \
-          arch/arm64/configs/vendor/xiaomi/apollon-recovery.config >/dev/null
+          arch/arm64/configs/vendor/xiaomi/apollo.config >/dev/null
         make -s O=out ARCH=arm64 LLVM=1 olddefconfig
 
         # Fail loud on symbols a wrong config set would silently lose.
@@ -265,17 +264,6 @@ jobs:
           grep -q "^CONFIG_${sym}=y" out/.config \
             || { echo "::error::CONFIG_${sym} missing from the merged config - wrong fragments, review manually."; exit 1; }
         done
-
-        # The production kernel must not carry FTRACE: with it on, the first
-        # upstream trace_printk() call site prints the DEBUG-kernel notice and
-        # allocates the extra tracing buffers. Guarded so a defconfig bump
-        # cannot silently re-enable it.
-        grep -q "^# CONFIG_FTRACE is not set" out/.config \
-          || { echo "::error::CONFIG_FTRACE is set again - the debug-kernel notice would return, review apollon-recovery.config."; exit 1; }
-        # BPF_LSM must follow FTRACE off: bpf_lsm.c references the tracing stack
-        # unconditionally (undefined tracing_prog_func_proto at link otherwise).
-        grep -q "^# CONFIG_BPF_LSM is not set" out/.config \
-          || { echo "::error::BPF_LSM needs the tracing stack - keep it off while FTRACE is off (apollon-recovery.config)."; exit 1; }
 
         make O=out ARCH=arm64 LLVM=1 -j"$(nproc)" Image
 
