@@ -262,6 +262,15 @@ sign that encryption was off.
 The single-thread setting is a **working workaround, not a root cause**, and
 restore of that backup is **not yet verified**.
 
+**ROUND TRIP VERIFIED 2026-10-16 (build 38839683143, 8 threads):** encrypted
+`/data` backup completed in 1611 s, then **restore completed in 736 s** with the
+archives extracting cleanly (`Extracting uncompressed tar`, no errors). 0 policy
+lookup failures across 24,980 `found fscrypt policy` lines; only 2 `E:` lines,
+both MTP/USB noise; 0 `invalid RPMB`. Backup + restore of FBEv1 `/data` with
+encryption now works end to end at full thread count. (This session's `dmesg`
+capture starts at t=1120s - the t=2s gate lines were evicted on the 40+ minute
+session, as documented; the gate itself was proven on the previous boot.)
+
 **STALL GATE VERIFIED 2026-10-16 (same build, same boot):** the gate-as-service
 fix works. `dmesg` finally shows the verdict directly at t=1.998s
 (`waiting for sg0 sg1 sg2` / `ready after 0 tries`), and
