@@ -385,13 +385,27 @@ so a non-reproduction means lightening the options, not that the bug is gone.
   symbol, so a stock LineageOS build of this kernel prints the same notice. It appears the
   first time an upstream `trace_printk()` call site runs — there are 13 in the tree — and the
   trace core then allocates the extra buffers the notice warns about.
-- [ ] Production fix: add a build fragment with `CONFIG_FTRACE=n`. With tracing off,
-  `trace_printk()` compiles to nothing, so both the notice and the buffer disappear. Add a
-  fail-loud assert next to the existing LTO/CFI ones so a future defconfig bump cannot
-  silently re-enable it. **Do not** patch the call site — the kernel fork stays pristine.
+- [x] Production fix **DONE 2026-10-16**: `arch/arm64/configs/vendor/xiaomi/apollon-recovery.config`
+  (`# CONFIG_FTRACE is not set`) in the kernel fork (`fb8307fbc`), merged by the
+  workflow and asserted (`grep -q "^# CONFIG_FTRACE is not set"` fails the build
+  if FTRACE returns — dt `4a013f3`/wlan dt `45912c1`). Rides the next build.
 - Recovery needs no tracing: the stall work used `dmesg` and SysRq only.
 
 ## Fixed in the fork, pending your next build (device test)
+
+- [ ] **Decrypt flake**: the gatekeeper HAL occasionally answers a verify with a
+  transient error (`GateKeeper response error` right after `using secdis to
+  decrypt spblob` → `Failed to decrypt user 0`) and an immediate manual retry
+  succeeds - four sessions 10-15/10-16, predating any restore damage.
+  `Decrypt_Device` now retries the FBE decrypt exactly once after 300 ms (a
+  genuinely wrong password fails both times: at most one extra attempt spent).
+  `Recovery-fork d24f01fb` (mainline) / `eec02792` (wlan)
+- [ ] **CLI backup name ignored**: `Run_Backup` resolved `tw_backup_name` after
+  `Update_System_Details()`, whose prop-read fallback silently overwrites it with
+  the current date - so `fox backup --name foo` always landed in a date-named
+  folder (proven on device 2026-10-16: `Backup Name is: '2026-10-16--15-03-22_…'`
+  for a request that carried `name=fixtest`). Resolution moved before that call.
+  `d24f01fb`/`eec02792`
 
 - [ ] **Passwords**: the backup, verify and restore fields silently dropped every character
   outside `[A-Za-z0-9_]` (your `++++++++1234` / `1234` match proved it) and converted a space
@@ -563,3 +577,22 @@ PM UIDs match data-dir owners (twitter 10229, termux 10207).
   likely disk-full or OTG write flake. The 10-16 07:58 backup is the good one.
 - On-phone recovery-log archive lives at /sdcard/Fox/logs (per-boot
   recovery_*.log.zip); pulled copy: /tmp/opencode/phone-logs/foxlogs.
+
+## WLAN / wireless-ADB build line (2026-10-16) — SEPARATE build, run 38958101995
+
+- Recovery fork branch `fox_16.0-apollon-wlan` = apollon fork + merge of OrangeFox
+  `fox_16.0_wifidev` (auto-merge, zero conflicts; all apollon fixes intact):
+  WiFi-in-recovery (wlan GUI + `fox wlan` CLI), `fox_adbd` (network ADB with
+  `start`/`pair`/`stop`/`list`/`forget`, secure or no-auth), web dashboard,
+  secrets store. Mainline branches stay untouched.
+- DT branch `fox_16.0-wlan`: `OF_ENABLE_WLAN := 1` (fox_apollon.mk), clones
+  wpa_supplicant_8 (`android16-s2-release`) + ttyd via twrp.dependencies, mounts
+  the modem partition at `/vendor/firmware_mnt` in recovery (qca6390 firmware
+  lives there), and builds recovery from the wlan branch.
+- Device facts for the test: firmware `/vendor/firmware_mnt/image/qca6390/`;
+  WCNSS configs in `/vendor/etc/wifi/`; `qcom,cnss-qca6390` present in the
+  recovery DTB; WiFi `<home-SSID>` (same LAN as the PC).
+- Test plan: flash zip -> recovery -> `fox wlan enable` + connect -> `fox adbd
+  start` (+ `pair`) -> `adb pair` / `adb connect` from the PC -> unplug USB, plug
+  the HDD on OTG -> wireless control while OTG is occupied, then the OTG-target
+  encrypted backup retest (the one HDD-dependent item).
