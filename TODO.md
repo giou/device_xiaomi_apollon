@@ -496,3 +496,70 @@ broke the first boots, plus one self-inflicted label bug:
 
 Verified after repair: clean boot, 0 fatals, 0 HAL failures, wifi enabled,
 PM UIDs match data-dir owners (twitter 10229, termux 10207).
+
+## Launcher + widget restore, encrypted-backup test prep (2026-10-16, later)
+
+- Home screen: `launcher.db` from the OTG backup (667648 B, win100) placed in
+  recovery with owner 10134, mode 660, `privapp_data_file` label -> icon grid
+  restored on boot. `.ofbak` dirs (21, ~8.5G) deleted after verification
+  (app byte-identical; adb diffs were pure Magisk/LSPosed runtime churn).
+- Widgets are two files, not one: the db rows (favorites itemType 4,
+  appWidgetIds 5/7/8) AND the AppWidgetService bindings
+  (`/data/system/users/0/appwidgets.xml`, binary XML). Booting with only the db
+  made the launcher prune the widget rows (667648 -> 643072 B, 0 widget rows)
+  and the service rewrite its file (20522 B). Fix: restore BOTH together in
+  recovery (xml: owner 1000:1000, 600, `system_data_file`; db: as above).
+  Done and verified on device: `dumpsys appwidget` shows launcher3 host 1024
+  with `widgets.size=3`; home screen back with all icons, folders and the
+  crypto widgets (Monero/BTC panels render; a third dark card may still be
+  warming up).
+- LOS adb from the new Linux PC needed the one-time on-screen Allow (host key);
+  plan: also append the PC's `adbkey.pub` to `/data/misc/adb/adb_keys` in
+  recovery so future boots need no dialog.
+- Tooling: `pyoaes.py` (decrypt openaes backup streams: 4096 B frames,
+  header+IV per frame, AES-CBC, ascending 1..k pad, key = raw password bytes;
+  byte-exact against the phone's openaes). For TWRP tars pass
+  `ignore_zeros=True` (PAX `TWRP.security.fscrypt` headers + zero blocks make
+  plain `tarfile` stop early). Windows PC superseded by the Linux PC
+  (<tailnet-ip>) after the hardware move; adb + Samba-free reads of the NTFS
+  HDD work there.
+- Fox engine: `backup`/`restore` now take `password` (`encrypt`), so encrypted
+  backups are creatable/restorable headless (`1dc8f297`).
+- Test plan for the walk fix (build 38891076450): flash, decrypt, encrypted
+  data backup to internal storage, restore it, expect bare-top
+  `found fscrypt policy '/data/<top>'` lines and no `set_policy_failed`.
+- TEST PASSED (build 38891076450 = walk fix + fox password args):
+  - encrypted data backup via fox CLI (password) to internal storage: 22
+    archives (win000-005 plain app/dalvik, win100-800 + splits OAES-encrypted),
+    21.7 GB, .sha2 digests generated.
+  - encrypted restore via fox CLI with the password arg: `RESTORE COMPLETED IN
+    399 SECONDS`, result code 0.
+  - restore log: bare-top `found fscrypt policy '/data/<top>'` for ALL 33 top
+    dirs (adb, adbroot, anr, app, ..., system, tombstones, vendor);
+    `set_policy_failed` = 0 (was 12+ pre-fix).
+  - post-restore boot: dmesg set_policy_failed = 0, logcat FATAL = 0, home
+    screen + all 3 widgets + folders intact. One post-restore quirk: the
+    LineageOS setup wizard took the HOME slot (stale preferred activity); fixed
+    with `cmd package set-home-activity com.android.launcher3/.uioverrides.QuickstepLauncher`,
+    reboot-verified.
+  - the test backup is KEPT on device (first backup that is safe to restore):
+    /sdcard/Fox/BACKUPS/Mi_10T_Pro/2026-10-16--15-03-22_CP2A260605016/
+  - evidence bundle: /tmp/opencode/phone-logs/restore-test/ (restore.ndjson,
+    recovery-after-restore.log, dmesg, logcat).
+  - lessons: attach the foxout reader BEFORE sending the request (a request that
+    starts a long op can outlive the adb shell that sent it); the adb link
+    blipped once under heavy IO but the engine-side operation ran to completion.
+- Flashing on the Linux PC: fastboot is dead against this bootloader from Linux
+  (gadget crashes mid-download, both platform-tools 33 and 37 - full detail in
+  scripts/remote-access.md). Proven path: push the release zip and
+  `twrp install /sdcard/of.zip` from recovery, then sha256 the partition -
+  verified bit-exact on the last release (partition = 128 MiB exactly).
+- Decrypt flake (found in /sdcard/Fox/logs archives): occasionally the first
+  PIN decrypt dies with `GateKeeper response error` -> `Failed to decrypt user 0`;
+  an immediate retry succeeds. Seen 10-15 19:42 and 20:18, 10-16 08:40 and 09:01 -
+  it predates the disaster. All scripts must retry `twrp decrypt` up to 3 times.
+- 10-15 storage backups to the OTG drive aborted mid-file on big media
+  (`E:Error writing tar file!` in three sessions) - those attempts are incomplete;
+  likely disk-full or OTG write flake. The 10-16 07:58 backup is the good one.
+- On-phone recovery-log archive lives at /sdcard/Fox/logs (per-boot
+  recovery_*.log.zip); pulled copy: /tmp/opencode/phone-logs/foxlogs.
