@@ -407,3 +407,12 @@ field a user actually edits is the whitelisted one at line 297. `gui/input.cpp`
 blacklist and only ever rejects, so the claim is not contradicted by the source -
 but it has never been observed on a field that is typed into, and should not be
 quoted again until it is.
+
+## Backup-name character set (resolved 2026-10-16)
+
+Backup names must survive Linux, Windows, FAT32/exFAT, MTP, tar and the shell,
+so both layers enforce the same portable set: printable ASCII except
+`' / " * + , : ; < = > ? [ \ ] |`, no trailing space or dot, and none of the
+reserved Windows device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9, with or
+without an extension). Passwords keep all 95 printable characters - they never
+become filenames and pass through Shell_Quote() + openaes.
