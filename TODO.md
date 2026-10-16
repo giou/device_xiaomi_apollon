@@ -341,7 +341,8 @@ so a non-reproduction means lightening the options, not that the bug is gone.
 
 
 
-- [ ] Any **tar + encryption** backup dies in the backup child:
+- [x] (FIXED 2026-10-16 - see "FIX VERIFIED" above; kept for the symptom record.)
+  Any **tar + encryption** backup dies in the backup child:
   `scudo: Scudo ERROR: corrupted chunk header … memory corruption or a double free` →
   `Fatal signal 6 (SIGABRT)` (in the forked backup child) →
   `createTarFork() process ended with signal: 6` → `Backup Failed. Cleaning Backup Folder.`
