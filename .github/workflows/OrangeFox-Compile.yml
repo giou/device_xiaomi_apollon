@@ -272,6 +272,10 @@ jobs:
         # cannot silently re-enable it.
         grep -q "^# CONFIG_FTRACE is not set" out/.config \
           || { echo "::error::CONFIG_FTRACE is set again - the debug-kernel notice would return, review apollon-recovery.config."; exit 1; }
+        # BPF_LSM must follow FTRACE off: bpf_lsm.c references the tracing stack
+        # unconditionally (undefined tracing_prog_func_proto at link otherwise).
+        grep -q "^# CONFIG_BPF_LSM is not set" out/.config \
+          || { echo "::error::BPF_LSM needs the tracing stack - keep it off while FTRACE is off (apollon-recovery.config)."; exit 1; }
 
         make O=out ARCH=arm64 LLVM=1 -j"$(nproc)" Image
 
