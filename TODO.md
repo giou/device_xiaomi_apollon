@@ -448,3 +448,25 @@ so both layers enforce the same portable set: printable ASCII except
 reserved Windows device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9, with or
 without an extension). Passwords keep all 95 printable characters - they never
 become filenames and pass through Shell_Quote() + openaes.
+
+## Restore bug: top-level directories are never stored (fix later, 2026-10-16)
+
+Every `/data` restore on this tree recreates all top-level directories without
+fscrypt policy, SELinux context or explicit owner, and the first system boot
+after restore dies on each of them in turn with
+`--reason=set_policy_failed:<path>` (seen: vendor, anr, tombstones, property,
+local, app, dalvik-cache, resource-cache, drm, ...).
+
+Root cause, proven from the lb8 backup log: `Generate_TarList` pushes children
+but never the root it is called on, and nothing else adds the tops - zero bare
+top-dir lines (`addFile` or `found fscrypt policy`) for all 12 top dirs versus
+651 policy lines for `/data/vendor` children alone. The restore side already
+handles tagged dir entries (`FSCRYPT_TAG` in block.c); it is just never fed
+them. Upstream shares the code, so this is not our regression - but our
+backups hit it on every restore.
+
+Repair in progress on device: move aside each failing dir (`.ofbak`, never
+delete), let init recreate it with policy+label, then copy contents back and
+`restorecon` (copy creates files under the correct policy; restorecon fixes
+labels - never blanket `restorecon -R /data`, which would mislabel per-app
+data). Durable fix: the backup walk must store top-level dir entries.
