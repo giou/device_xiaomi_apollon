@@ -30,6 +30,11 @@
 # confirmed in dmesg); hide the inert setting
 OF_USE_GREEN_LED := 0
 OF_MAINTAINER := giou
+
+# WiFi in recovery + fox_adbd (network ADB, incl. pairing) + web dashboard.
+# Needs the wpa_supplicant_8/ttyd sources (see twrp.dependencies) and the modem
+# partition mounted at /vendor/firmware_mnt in recovery (see recovery.fstab).
+OF_ENABLE_WLAN := 1
 FOX_MAINTAINER_PATCH_VERSION := 8
 
 # Logical-partition toolkit — official/miatoll parity.

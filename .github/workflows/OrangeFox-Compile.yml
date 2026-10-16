@@ -213,7 +213,7 @@ jobs:
           git -C "${dir}" log --oneline -3
         done <<'EOF'
         system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
-        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon
+        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon-wlan
         EOF
 
     - name: Build the kernel from the apollon fork
