@@ -385,10 +385,18 @@ so a non-reproduction means lightening the options, not that the bug is gone.
   symbol, so a stock LineageOS build of this kernel prints the same notice. It appears the
   first time an upstream `trace_printk()` call site runs — there are 13 in the tree — and the
   trace core then allocates the extra buffers the notice warns about.
-- [x] Production fix **DONE 2026-10-16**: `arch/arm64/configs/vendor/xiaomi/apollon-recovery.config`
-  (`# CONFIG_FTRACE is not set`) in the kernel fork (`fb8307fbc`), merged by the
-  workflow and asserted (`grep -q "^# CONFIG_FTRACE is not set"` fails the build
-  if FTRACE returns — dt `4a013f3`/wlan dt `45912c1`). Rides the next build.
+- [x] **DECISION 2026-10-16 (user): keep LOS-config parity** — the DEBUG-kernel
+  notice is accepted and documented; no config suppression ships. A fragment
+  disabling `FTRACE` (plus `BPF_LSM`, see below) was built, then reverted:
+  kernel `fb8307fbc`/`3feec5b92` → `2635b3b33`, workflow `4a013f3`/`13483e6`
+  → `acc0f6e` (mainline) / `93ba571` (wlan).
+  - For the record, the try exposed a real dependency: with `FTRACE=n`,
+    `BPF_LSM=y` (from kona-perf_defconfig) breaks the link —
+    `kernel/bpf/bpf_lsm.c:127` calls `tracing_prog_func_proto` unconditionally,
+    and that symbol's object (`kernel/trace/bpf_trace.c`) is gated on
+    `BPF_EVENTS`, which needs tracing. Anyone retrying must disable both.
+  - The notice's trigger and scope (recovery kernel only; the ROM kernel is
+    LineageOS's own and untouched) are recorded in this file's section above.
 - Recovery needs no tracing: the stall work used `dmesg` and SysRq only.
 
 ## Fixed in the fork, pending your next build (device test)
