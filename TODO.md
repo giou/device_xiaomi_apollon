@@ -279,7 +279,7 @@ wrapper (`start_qseecomd.sh`, pid-preserving `exec`) is confirmed in the shipped
 ramdisk, and the TEE cleanup stopped qseecomd cleanly after decrypt (22.15s).
 0 `invalid RPMB` lines; decrypt-to-cleanup took ~80ms, no hesitation signature.
 
-Stall count: **8** clean boots with a PIN decrypt and zero RPMB lines (incl. the
+Stall count: **9** clean boots (9th, 2026-10-16 evening: gate `ready after 0 tries` at t=1.98s, first-try decrypt, 0 RPMB lines) with a PIN decrypt and zero RPMB lines (incl. the
 round-trip session), gate N=0 on every boot where the verdict was readable. Still below the ~30 bar, and the
 gate has never been observed waiting (N>0), so the prevention itself remains
 unobserved - but from this build on, any boot where it engages will say so in
@@ -357,20 +357,15 @@ so a non-reproduction means lightening the options, not that the bug is gone.
   one archive each (`win100…win800`), each forking its own `openaes` and writing a tar
   stream through a pipe (`write_tar_no_buffer`, `tarWrite.c`). Crash is always inside
   phase 2. `/super` is one file, `/data` is ~200k.
-- [ ] In flight: `/data` **compression ON, encryption OFF** (single thread + pigz: uses the
-  same no-buffer/pipe/fork machinery without the 8 threads) — separates the write path from
-  the threading.
-- [ ] Next build: `core_count = 1` for encrypted backups. Safe by construction — the list
-  division (`target_size = encrypt_size / core_count`) and the thread loop both follow
-  `core_count`, so every file still lands in thread 1's list. Localises it and is a
-  candidate workaround.
-- [ ] If it survives a single thread, the next lever is a backtrace: recovery ships no
-  `crash_dump` helper (`failed to exec crash_dump helper: No such file or directory`), so
-  push `crash_dump64` plus its libs from the ROM into the ramdisk and let the abort dump a
-  tombstone.
-- [ ] Sampler note: the first attempt produced no data (my bug — `grep -E "a|b"` inside a
-  quoted adb shell string; the `|` was parsed by the device shell). Fixed version uses one
-  adb call per value, nothing piped or quoted device-side.
+- [x] (SUPERSEDED 2026-10-16 — the v1/v2 struct fix is verified end to end; see
+  "FIX VERIFIED" above.) In flight: `/data` **compression ON, encryption OFF**
+  ... separates the write path from the threading.
+- [x] (SUPERSEDED — same fix.) Next build: `core_count = 1` for encrypted backups.
+- [x] (SUPERSEDED — same fix; malloc_debug found the cause, no tombstone tooling needed.)
+  If it survives a single thread, the next lever is a backtrace: push `crash_dump64` plus
+  its libs from the ROM into the ramdisk and let the abort dump a tombstone.
+- [x] (DONE — fixed sampler used one adb call per value, nothing piped or quoted
+  device-side; the malloc_debug runs already used it.) Sampler note.
 
 ## Open bug: production kernel prints the DEBUG-kernel notice
 
@@ -527,9 +522,10 @@ PM UIDs match data-dir owners (twitter 10229, termux 10207).
   with `widgets.size=3`; home screen back with all icons, folders and the
   crypto widgets (Monero/BTC panels render; a third dark card may still be
   warming up).
-- LOS adb from the new Linux PC needed the one-time on-screen Allow (host key);
-  plan: also append the PC's `adbkey.pub` to `/data/misc/adb/adb_keys` in
-  recovery so future boots need no dialog.
+- LOS adb from the new Linux PC: DONE 2026-10-16 - the PC's host key is
+  pre-authorized in `/data/misc/adb/adb_keys` (adbd re-persists the file itself
+  as `system:shell` + `adb_keys_file`; leave that ownership to adbd). The
+  one-time on-screen Allow was needed only before this.
 - Tooling: `pyoaes.py` (decrypt openaes backup streams: 4096 B frames,
   header+IV per frame, AES-CBC, ascending 1..k pad, key = raw password bytes;
   byte-exact against the phone's openaes). For TWRP tars pass
