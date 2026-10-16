@@ -470,3 +470,29 @@ delete), let init recreate it with policy+label, then copy contents back and
 `restorecon` (copy creates files under the correct policy; restorecon fixes
 labels - never blanket `restorecon -R /data`, which would mislabel per-app
 data). Durable fix: the backup walk must store top-level dir entries.
+
+## Phone repair after the restore (2026-10-16, all on device via remote adb)
+
+The restore itself was correct (policies stored clean), but two restore-side gaps
+broke the first boots, plus one self-inflicted label bug:
+
+1. Top-level dirs recreated without policies -> `set_policy_failed` per dir
+   (vendor, anr, tombstones, property, local, app, dalvik-cache,
+   resource-cache, drm, nfc, backup, ...). Repaired by move-aside, init
+   recreate, copy-back. Durable fix still owed: store top-level dir entries.
+2. `restorecon -R` over repaired dirs flattened live-specific labels to
+   file_contexts generics. Two casualties: Magisk module dirs
+   (`adb_data_file` instead of `system_file` -> zygote abort loop, fixed by
+   matching `.ofbak` labels incl. `dex2oat_exec` binaries) and the vendor wifi
+   subtree (993 paths, 37 types incl. `vendor_wifi_vendor_wpa_socket`).
+   Lesson: never blanket-restorecon a tree; Magisk manages its own labels.
+   `/data/adb` is excluded from any future restorecon.
+3. Stale runtime sockets (`cnss_user_server`, `wpa_ctrl_*`, `unsolzygote*`)
+   with wrong labels blocked daemon startup (`Wifi HAL start failed` via a
+   driver-state EINVAL chain). Removed in recovery; daemons recreated them.
+4. `/data/user_de` restored with the fallback label blocked zygote `mounton`
+   (no app could start). Relabeled to `system_userdir_file` from recovery root
+   (system shell cannot relabel - `Operation not permitted`).
+
+Verified after repair: clean boot, 0 fatals, 0 HAL failures, wifi enabled,
+PM UIDs match data-dir owners (twitter 10229, termux 10207).
