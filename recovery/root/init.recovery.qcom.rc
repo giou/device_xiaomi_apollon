@@ -114,3 +114,36 @@ service vendor.qti.vibrator /vendor/bin/hw/vendor.qti.hardware.vibrator.service
     user system
     group system input
     seclabel u:r:recovery:s0
+
+# --- Fox WLAN bring-up (OF_ENABLE_WLAN) ---------------------------------------
+# fox's Wlan::StartInitSupplicantService sets sys.fox.wlan.up=1 when the user
+# enables WLAN; this block brings the QCA6390 stack up on demand:
+#   1. /vendor (erofs, logical) and the modem firmware partition are mounted -
+#      cnss2 defers the WLAN boot until userspace declares the firmware
+#      filesystem ready.
+#   2. qrtr-ns starts BEFORE fs_ready: the firmware's WLFW QMI service registers
+#      with the QRTR name server and cnss2's lookup never resolves without it.
+#      (Proven against a working Android boot: "QMI WLFW service connected"
+#      lands 20 ms after vendor.qrtr-ns starts; recovery without it stalls at
+#      "fatal: Timeout waiting for FW ready indication".)
+#   3. fs_ready releases the boot (regulators, PCIe link, MHI, firmware load).
+#   4. Wait for wlan0 (the host driver probes on FW-ready), then start the
+#      supplicant and clear the trigger.
+service wpa_supplicant /system/bin/wpa_supplicant -iwlan0 -Dnl80211 -c/system/etc/wifi/wpa_supplicant.conf -s
+    class core
+    user root
+    group root system wifi inet
+    disabled
+    seclabel u:r:recovery:s0
+
+on property:sys.fox.wlan.up=1
+    mkdir /vendor 0755
+    mkdir /vendor/firmware_mnt 0755
+    mkdir /tmp/recovery/sockets 0777
+    exec - root -- /system/bin/sh -c "mount | grep -q ' /vendor ' || mount -t erofs -o ro /dev/block/mapper/vendor /vendor"
+    exec - root -- /system/bin/sh -c "mount | grep -q ' /vendor/firmware_mnt ' || mount -t vfat -o ro,shortname=lower /dev/block/by-name/modem /vendor/firmware_mnt"
+    exec - root -- /system/bin/sh -c "/vendor/bin/qrtr-ns >/dev/null 2>&1 &"
+    write /sys/kernel/cnss/fs_ready 1
+    exec - root -- /system/bin/wlan_wait_iface.sh wlan0
+    start wpa_supplicant
+    setprop sys.fox.wlan.up 0
