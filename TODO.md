@@ -262,6 +262,20 @@ sign that encryption was off.
 The single-thread setting is a **working workaround, not a root cause**, and
 restore of that backup is **not yet verified**.
 
+**STALL GATE VERIFIED 2026-10-16 (same build, same boot):** the gate-as-service
+fix works. `dmesg` finally shows the verdict directly at t=1.998s
+(`waiting for sg0 sg1 sg2` / `ready after 0 tries`), and
+`/tmp/wait_sg_rpmb.log` holds the same two lines (collector pulled it). The
+wrapper (`start_qseecomd.sh`, pid-preserving `exec`) is confirmed in the shipped
+ramdisk, and the TEE cleanup stopped qseecomd cleanly after decrypt (22.15s).
+0 `invalid RPMB` lines; decrypt-to-cleanup took ~80ms, no hesitation signature.
+
+Stall count: **7** clean boots with a PIN decrypt and zero RPMB lines, gate N=0
+on every boot where the verdict was readable. Still below the ~30 bar, and the
+gate has never been observed waiting (N>0), so the prevention itself remains
+unobserved - but from this build on, any boot where it engages will say so in
+`dmesg`, no proxy needed.
+
 **FIX VERIFIED 2026-10-16 (on device, build 38839683143, 8 threads):** encrypted
 `/data`, compression OFF, `Core Count : 8` completed in 316 s with **0** Scudo /
 signal / `createTarFork` / `fscrypt policy size mismatch` lines. Phase 2 ran all
