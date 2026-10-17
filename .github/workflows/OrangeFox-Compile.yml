@@ -1,7 +1,15 @@
 name: OrangeFox - Build
 
 # Apolon-specific builder: this workflow only ever builds OrangeFox 16.0
-# recovery for Xiaomi apollon from THIS tree. No inputs - one-click run.
+# recovery for Xiaomi apollon from THIS tree.
+#
+# The dispatched branch picks the PRIMARY variant: fox_16.0-wlan builds the
+# wlan stack (its assets are tagged -wlan), fox_16.0 builds the mainline
+# recovery (plain asset names). Input 'build': both = also build the sibling
+# variant in this same runner (incremental - manifest/kernel/objects are
+# shared, so the second variant is NOT a from-scratch compile); single = this
+# branch's variant only. Bump FOX_MAINTAINER_PATCH_VERSION in fox_apollon.mk
+# before dispatching.
 #
 # Credits to:
 # https://github.com/TeamWin
@@ -13,6 +21,12 @@ run-name: OrangeFox 16.0 for apollon (recovery)
 
 on:
   workflow_dispatch:
+    inputs:
+      build:
+        description: 'both variants, or this branch only'
+        type: choice
+        options: [both, single]
+        default: both
 
 defaults:
   run:
@@ -68,6 +82,31 @@ jobs:
           exit 1
         fi
         echo "Input validation passed."
+
+        # Variant naming: the branch decides the primary variant; the sibling
+        # build derives from it. -wlan assets carry the WLAN/network features.
+        VARIANT="mainline"
+        [[ "${GITHUB_REF_NAME}" == *wlan* ]] && VARIANT="wlan"
+        if [[ "${VARIANT}" == "wlan" ]]; then
+          VARIANT_SUFFIX="-wlan"
+          OTHER_VARIANT="mainline"
+          OTHER_DT_BRANCH="fox_16.0"
+          OTHER_FORK_BRANCH="fox_16.0-apollon"
+          OTHER_SUFFIX=""
+        else
+          VARIANT_SUFFIX=""
+          OTHER_VARIANT="wlan"
+          OTHER_DT_BRANCH="fox_16.0-wlan"
+          OTHER_FORK_BRANCH="fox_16.0-apollon-wlan"
+          OTHER_SUFFIX="-wlan"
+        fi
+        echo "Primary variant: ${VARIANT} (asset suffix '${VARIANT_SUFFIX}')"
+        echo "Other variant:   ${OTHER_VARIANT} (asset suffix '${OTHER_SUFFIX}')"
+        echo "VARIANT_SUFFIX=${VARIANT_SUFFIX}" >> "${GITHUB_ENV}"
+        echo "OTHER_VARIANT=${OTHER_VARIANT}" >> "${GITHUB_ENV}"
+        echo "OTHER_DT_BRANCH=${OTHER_DT_BRANCH}" >> "${GITHUB_ENV}"
+        echo "OTHER_FORK_BRANCH=${OTHER_FORK_BRANCH}" >> "${GITHUB_ENV}"
+        echo "OTHER_SUFFIX=${OTHER_SUFFIX}" >> "${GITHUB_ENV}"
 
     - name: Clean-up
       uses: rokibhasansagar/slimhub_actions@c2a6e4317d3de2b623ac7395b05e9d2149e8289b # main, pinned 2026-10-14
@@ -361,13 +400,78 @@ jobs:
             echo "::error::Unexpected asset name '${base}' - vendor naming changed, review manually."
             exit 1
           fi
-          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${base#OrangeFox-R12.0-Unofficial-}"
+          rest="${base#OrangeFox-R12.0-Unofficial-}"
+          ext="${rest##*.}"
+          stem="${rest%.*}"
+          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${VARIANT_SUFFIX}.${ext}"
           mv "${f}" "${OUT_DIR}/${new}"
           echo "${base} -> ${new}"
           renamed=$((renamed + 1))
         done
         if [[ "${renamed}" -eq 0 ]]; then
           echo "::error::No OrangeFox assets found to rename in ${OUT_DIR}."
+          exit 1
+        fi
+        ls -lh "${OUT_DIR}"/OrangeFox*
+
+    - name: Swap to the other variant
+      if: ${{ inputs.build == 'both' }}
+      # Same runner, same workspace: the manifest and the kernel are shared,
+      # only the device tree files and bootable/recovery swap -> the second
+      # build is incremental (no from-scratch compile).
+      run: |
+        set -euo pipefail
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        cd "${GITHUB_WORKSPACE}"
+        git fetch --depth=1 origin "${OTHER_DT_BRANCH}"
+        rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
+        mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
+        git archive FETCH_HEAD | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
+        cd "${FOX_ROOT}"
+        rm -rf bootable/recovery
+        git clone --depth=1 --single-branch --branch "${OTHER_FORK_BRANCH}" \
+          https://github.com/giou/Recovery.git bootable/recovery
+        echo "Swapped to ${OTHER_VARIANT}: dt=${OTHER_DT_BRANCH} fork=${OTHER_FORK_BRANCH}"
+        git -C bootable/recovery log --oneline -2
+
+    - name: Build the other variant (incremental)
+      if: ${{ inputs.build == 'both' }}
+      env:
+        FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
+        FOX_DELETE_AROMAFM: '1'
+      run: |
+        set -eo pipefail
+        cd "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        set +e +u
+        set +o pipefail
+        source build/envsetup.sh
+        set -e
+        lunch "twrp_${DEVICE_NAME}-bp2a-eng"
+        mka adbd "${BUILD_TARGET}image"
+
+    - name: Rename the other variant assets
+      if: ${{ inputs.build == 'both' }}
+      run: |
+        set -euo pipefail
+        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        renamed=0
+        for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
+          [[ -e "${f}" ]] || continue
+          base="$(basename "${f}")"
+          if [[ "${base}" != OrangeFox-R12.0-Unofficial-* ]]; then
+            echo "skip (already renamed): ${base}"
+            continue
+          fi
+          rest="${base#OrangeFox-R12.0-Unofficial-}"
+          ext="${rest##*.}"
+          stem="${rest%.*}"
+          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${OTHER_SUFFIX}.${ext}"
+          mv "${f}" "${OUT_DIR}/${new}"
+          echo "${base} -> ${new}"
+          renamed=$((renamed + 1))
+        done
+        if [[ "${renamed}" -eq 0 ]]; then
+          echo "::error::No ${OTHER_VARIANT} assets found to rename in ${OUT_DIR}."
           exit 1
         fi
         ls -lh "${OUT_DIR}"/OrangeFox*
@@ -384,6 +488,7 @@ jobs:
         body: |
           ## OrangeFox Recovery Build - Unofficial
           Banner: `R12.0_${{ env.BUILD_VER }}`. The recovery UI (or the first line of its log) must show this version.
+          Variants: plain-name assets are the mainline build; `-wlan` assets carry the wireless-adb / WLAN recovery features.
           Build: fox_${{ env.MANIFEST_BRANCH }}
           Device: [Device Tree/Branch](${{ env.DEVICE_TREE_URL }}/tree/${{ env.DEVICE_TREE_BRANCH }})
           Built from commit [${{ env.COMMIT_ID }}](${{ env.DEVICE_TREE_URL }}/commit/${{ env.COMMIT_ID }}).
