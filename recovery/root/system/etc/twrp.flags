@@ -1,7 +1,7 @@
 # mount point	          fstype               device         device2                                flags
 /metadata                  ext4                /dev/block/by-name/metadata                            flags=display="metadata";wrappedkey;backup=1
 /data                      f2fs                /dev/block/bootdevice/by-name/userdata                 flags=fileencryption=ice;wrappedkey;keydirectory=/metadata/vold/metadata_encryption
-/cache                     ext4                /dev/block/bootdevice/by-name/cache                    flags=backup=1;wipeingui;wipeduringfactoryreset
+/cache                     ext4                /dev/block/bootdevice/by-name/cache                    flags=backup=1;wipeingui;wipeduringfactoryreset;canencryptbackup
 
 # Internal storage backup (ground rule C): separate from /data so media
 # can be backed up on its own (same line as official miatoll)
