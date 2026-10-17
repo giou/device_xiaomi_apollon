@@ -475,6 +475,30 @@ jobs:
           echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
         fi
 
+    - name: Assert NAS binaries in the wlan recovery image
+      if: ${{ inputs.probe != 'kernel-ccache' }}
+      # A wlan recovery drives OrangeFox "Network Storage" through rclone +
+      # fusermount3. Both come from external/rclone + external/libfuse via
+      # twrp.dependencies; when either was missing the build still went green
+      # and shipped a recovery whose NAS mount can never start (R12.0_9 ..
+      # R12.0_14). Fail loud instead of shipping it again.
+      run: |
+        set -euo pipefail
+        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        BIN_DIR="${OUT_DIR}/recovery/root/system/bin"
+        if [[ ! -x "${BIN_DIR}/ttyd" ]]; then
+          echo "mainline ramdisk (no ttyd): NAS binaries are not part of this variant, skipping."
+          exit 0
+        fi
+        ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
+        for b in rclone fusermount3; do
+          if [[ ! -x "${BIN_DIR}/${b}" ]]; then
+            echo "::error::${b} missing from the wlan recovery ramdisk - check twrp.dependencies (external/rclone, external/libfuse) and the TWRP_REQUIRED_MODULES list in orangefox.mk."
+            exit 1
+          fi
+        done
+        echo "NAS binaries present: rclone, fusermount3"
+
     - name: Diagnose build failure
       # Failure-only observability: disk/memory + tool provenance for the next
       # triage. Cheap, runs only when a build step fails.
@@ -599,6 +623,25 @@ jobs:
           ccache -s -v 2>/dev/null || true
           echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
         fi
+
+    - name: Assert NAS binaries in the wlan recovery image (other variant)
+      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
+      run: |
+        set -euo pipefail
+        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        BIN_DIR="${OUT_DIR}/recovery/root/system/bin"
+        if [[ ! -x "${BIN_DIR}/ttyd" ]]; then
+          echo "mainline ramdisk (no ttyd): NAS binaries are not part of this variant, skipping."
+          exit 0
+        fi
+        ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
+        for b in rclone fusermount3; do
+          if [[ ! -x "${BIN_DIR}/${b}" ]]; then
+            echo "::error::${b} missing from the wlan recovery ramdisk of the other variant - check twrp.dependencies (external/rclone, external/libfuse) and the TWRP_REQUIRED_MODULES list in orangefox.mk."
+            exit 1
+          fi
+        done
+        echo "NAS binaries present: rclone, fusermount3"
 
     - name: Rename the other variant assets
       if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
