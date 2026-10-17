@@ -143,5 +143,7 @@ service wpa_supplicant /system/bin/sh /system/bin/wpa_supplicant_wrapper.sh -iwl
     seclabel u:r:recovery:s0
 
 on property:sys.fox.wlan.up=1
-    exec - root -- /system/bin/wlan_bringup.sh
+    # init's exec refuses a ramdisk script directly (label rootfs, no domain
+    # transition); exec the shell and let it run the script.
+    exec - root -- /system/bin/sh /system/bin/wlan_bringup.sh
     setprop sys.fox.wlan.up 0

@@ -1,16 +1,10 @@
 #!/system/bin/sh
-# fox WLAN bring-up for the QCA6390 (apollon).
-# Called by init on `sys.fox.wlan.up=1`; safe to run manually for debugging.
-# Chain (mirrors a working Android boot):
-#   mounts -> qrtr-ns -> fs_ready -> (WLFW announcement) -> cnss-daemon
-#   -> wait wlan0 -> supplicant
 LOG=/tmp/wlan-bringup.log
 exec >>"$LOG" 2>&1
 echo "=== wlan bring-up $(date) ==="
 
-# 1. /vendor (erofs) and the modem firmware partition (vfat). Retry: the dm
-#    device can lag at early boot, and the FW files must be visible before
-#    fs_ready releases the cnss boot.
+# 1. /vendor (erofs) + modem firmware (vfat). Retry: the dm device can lag at
+#    early boot, and the firmware must be visible before fs_ready.
 i=0
 while ! mount | grep -q " /vendor "; do
   mkdir -p /vendor
@@ -38,10 +32,8 @@ fi
 # 3. Release the cnss boot (regulators, PCIe, MHI, firmware load).
 echo 1 > /sys/kernel/cnss/fs_ready
 
-# 4. Wait for the firmware to announce WLFW (same point Android starts the
-#    daemon), then run cnss-daemon: it performs the WLFW service request and
-#    calibration that produce the "FW ready" indication. Without it the driver
-#    stalls at "Timeout waiting for FW ready indication".
+# 4. Wait for the WLFW announcement, then run cnss-daemon: it performs the
+#    WLFW service request that produces the "FW ready" indication.
 i=0
 while [ "$i" -lt 30 ]; do
   dmesg 2>/dev/null | grep -q "WLFW server arriving" && break
@@ -54,15 +46,28 @@ if ! pidof cnss-daemon >/dev/null 2>&1; then
   echo "cnss-daemon started"
 fi
 
-# 5. Wait for the host driver to create wlan0.
+# 5. Wait for FW ready, then kick the host driver: the qcwlanstate char device
+#    write calls hdd_driver_load() -> wlan0 appears.
+i=0
+while [ "$i" -lt 40 ]; do
+  dmesg 2>/dev/null | grep -q "Received QMI WLFW FW ready indication" && break
+  sleep 1; i=$((i+1))
+done
+echo "FW ready after ${i}s"
+if [ -e /dev/wlan ]; then
+  printf 'ON\n' > /dev/wlan
+  echo "wrote ON to /dev/wlan"
+else
+  echo "no /dev/wlan node"
+fi
+
+# 6. Wait for wlan0, then start the supplicant service.
 i=0
 while [ "$i" -lt 90 ]; do
   ifconfig wlan0 >/dev/null 2>&1 && { echo "wlan0 up after ${i}s"; break; }
   sleep 1; i=$((i+1))
 done
 ifconfig wlan0 2>&1 | head -2
-
-# 6. Supplicant.
 setprop ctl.start wpa_supplicant
 sleep 2
 echo "supplicant: $(getprop init.svc.wpa_supplicant)"
