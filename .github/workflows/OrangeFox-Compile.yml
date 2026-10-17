@@ -657,7 +657,9 @@ jobs:
             -e "s|%%DEVICE_TREE_URL%%|${DEVICE_TREE_URL}|g" \
             -e "s|%%DEVICE_TREE_BRANCH%%|${DEVICE_TREE_BRANCH}|g" \
             -e "s|%%COMMIT_ID%%|${COMMIT_ID}|g" \
+            -e "s|%%COMMIT_ID_SHORT%%|$(printf '%s' "${COMMIT_ID}" | cut -c1-7)|g" \
             -e "s|%%FORK_HEAD%%|${FORK_HEAD:-unknown}|g" \
+            -e "s|%%FORK_HEAD_SHORT%%|$(printf '%s' "${FORK_HEAD:-unknown}" | cut -c1-7)|g" \
             "${TPL}" > "${COMPOSED}"
         {
           echo "body<<RELEASE_NOTES_EOF"
@@ -665,7 +667,11 @@ jobs:
         import sys
         tpl = open(sys.argv[1]).read()
         auto = open(sys.argv[2]).read()
-        sys.stdout.write(tpl.replace("<!--AUTO-CHANGES-->", auto))
+        text = tpl.replace("<!--AUTO-CHANGES-->", auto)
+        # An empty Known-issues section is noise: drop the whole block, but
+        # only when it is exactly the "(none)" marker (real entries stay).
+        text = text.replace("### Known issues\n(none)\n\n", "")
+        sys.stdout.write(text)
         EOF
           echo "RELEASE_NOTES_EOF"
         } >> "${GITHUB_OUTPUT}"
