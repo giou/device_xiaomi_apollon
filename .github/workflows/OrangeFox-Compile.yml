@@ -606,8 +606,5 @@ jobs:
           - MTP: correct dates in Windows
           - Backups: encrypted backups enabled
           - Build: logical partition tools, Magisk 31, source-built kernel (LOS config), boot blobs from LOS
+          - Wireless (`-wlan` variants): WLAN in recovery, network ADB with pairing, remote web access (dashboard + terminal)
           - Full list: [README](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/README.md)
-
-          ### Known issue
-          - Intermittent decrypt stall. If it recurs, run `adb shell ls /dev/sg*` and pull the qseecomd fd list before you reboot. That pair decides the case. A reboot can still clear the secure-world state.
-            See [docs/DECRYPT-STALL.md](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/docs/DECRYPT-STALL.md)
