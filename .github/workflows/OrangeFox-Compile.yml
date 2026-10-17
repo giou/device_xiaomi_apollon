@@ -665,7 +665,7 @@ jobs:
         import sys
         tpl = open(sys.argv[1]).read()
         auto = open(sys.argv[2]).read()
-        sys.stdout.write(tpl.replace("%%AUTO_CHANGES%%", auto))
+        sys.stdout.write(tpl.replace("<!--AUTO-CHANGES-->", auto))
         EOF
           echo "RELEASE_NOTES_EOF"
         } >> "${GITHUB_OUTPUT}"

@@ -1,3 +1,6 @@
+<!-- Release-notes TEMPLATE. Placeholders (%%LIKE_THIS%%) are substituted at
+     build time by the workflow's "Compose release notes" step; browse a
+     published release for the resolved text. -->
 ## OrangeFox Recovery Build - Unofficial
 Banner: `R12.0_%%BUILD_VER%%`. The recovery UI (or the first line of its log) must show this version.
 Variants: plain-name assets are the mainline build; `-wlan` assets carry the wireless-adb / WLAN recovery features.
@@ -13,9 +16,11 @@ Built from commit [%%COMMIT_ID%%](%%DEVICE_TREE_URL%%/commit/%%COMMIT_ID%%) + fo
 - Backups: encrypted backups enabled
 - Build: logical partition tools, Magisk 31, source-built kernel (LOS config), boot blobs from LOS
 - Wireless (`-wlan` variants): WLAN in recovery, network ADB with pairing, remote web access (dashboard + terminal)
-- Full list: [README](%%DEVICE_TREE_URL%%/blob/%%DEVICE_TREE_BRANCH%%/README.md)
+- Full list: [README](https://github.com/giou/device_xiaomi_apollon#readme)
 
 ### Known issues
 (none)
 
-%%AUTO_CHANGES%%
+<!-- The line below is replaced at build time with the per-release commit
+     list: invisible in this template, visible in published releases. -->
+<!--AUTO-CHANGES-->
