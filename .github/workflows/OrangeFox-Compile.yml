@@ -122,11 +122,14 @@ jobs:
       # One entry carrying both ccache dirs (9.5G cap total vs the repo's
       # 10 GB quota; GitHub's LRU evicts older versions as new ones save).
       # A cold run saves a fresh entry at the end; the next run restores it.
+      # Paths live in the workspace, not runner.temp: one hosted runner
+      # returned EROFS creating <runner.temp>/ccache-of/tmp (run 39006228739,
+      # 2026-10-17) — everything under _temp is off-limits for the caches now.
       uses: actions/cache@v4
       with:
         path: |
-          ${{ runner.temp }}/ccache-of
-          ${{ runner.temp }}/ccache
+          ${{ github.workspace }}/ccache-of
+          ${{ github.workspace }}/ccache
         key: ccache-${{ env.MANIFEST_BRANCH }}-v1-${{ github.run_id }}
         restore-keys: |
           ccache-${{ env.MANIFEST_BRANCH }}-v1-
@@ -323,7 +326,7 @@ jobs:
         # ccache for the kernel compiles: capped at 1G (the measured store is
         # ~754M) so it plus the OF cache fit the repo's 10 GB quota. The dir is
         # restored/saved by the ccache cache step; the probe only adds stats.
-        export CCACHE_DIR="${RUNNER_TEMP}/ccache"
+        export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache"
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=1000M
         ccache -z >/dev/null 2>&1 || true
@@ -402,7 +405,7 @@ jobs:
         # stats report at the end.
         export USE_CCACHE=1
         export CCACHE_EXEC="$(command -v ccache)"
-        export CCACHE_DIR="${RUNNER_TEMP}/ccache-of"
+        export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache-of"
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=8500M
         echo "USE_CCACHE=1" >> "${GITHUB_ENV}"
