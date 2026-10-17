@@ -122,13 +122,16 @@ jobs:
       # One entry carrying both ccache dirs (9.5G cap total vs the repo's
       # 10 GB quota; GitHub's LRU evicts older versions as new ones save).
       # A cold run saves a fresh entry at the end; the next run restores it.
-      # Paths live in the workspace, not runner.temp: one hosted runner
-      # returned EROFS creating <runner.temp>/ccache-of/tmp (run 39006228739,
-      # 2026-10-17) — everything under _temp is off-limits for the caches now.
+      # The OF dir lives under out/: Soong runs hermetic host actions in a
+      # sandbox with the source tree read-only, and ccache's cache-dir write
+      # trips EROFS there (runs 39006228739, 39012647989 — external/icu host
+      # modules). out/ is the sandbox-writable area, so out/ccache-of works
+      # and persists. The kernel make build has no sandbox; its dir stays at
+      # the workspace root.
       uses: actions/cache@v4
       with:
         path: |
-          ${{ github.workspace }}/ccache-of
+          ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/ccache-of
           ${{ github.workspace }}/ccache
         key: ccache-${{ env.MANIFEST_BRANCH }}-v1-${{ github.run_id }}
         restore-keys: |
@@ -413,9 +416,13 @@ jobs:
         # churned out by GitHub's LRU). Exported via GITHUB_ENV so the second
         # (dual-build) variant shares the cache. probe=of-ccache only adds the
         # stats report at the end.
+        # The dir MUST live under out/: Soong runs hermetic host actions in a
+        # sandbox with the source tree read-only, and ccache's first write
+        # there dies with EROFS (fatal to the build). out/ is writable inside
+        # the sandbox, so the cache works and keeps working.
         export USE_CCACHE=1
         export CCACHE_EXEC="$(command -v ccache)"
-        export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache-of"
+        export CCACHE_DIR="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/ccache-of"
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=8500M
         # Same mtime-churn problem as the kernel step (fresh sync each run):
@@ -429,6 +436,7 @@ jobs:
         echo "CCACHE_MAXSIZE=8500M" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
         echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
+        echo "of ccache: restored entries: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
         set +e +u
         set +o pipefail
         # shellcheck disable=SC1091
