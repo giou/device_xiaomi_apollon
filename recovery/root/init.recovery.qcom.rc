@@ -133,8 +133,12 @@ service vendor.qti.vibrator /vendor/bin/hw/vendor.qti.hardware.vibrator.service
 #   5. write "ON" to /dev/wlan: the qcwlanstate char device calls the qcacld
 #      driver load -> wlan0 appears.
 #   6. wait for wlan0, then start the supplicant service.
-# The bring-up lived in raw `exec ... sh -c` lines before; those failed
-# silently at trigger time (init exec semantics) - hence one script now.
+# The bring-up must run as a SERVICE with an explicit seclabel. The ramdisk's
+# /system/bin/sh carries the rootfs label, so init `exec` refuses it ("no
+# domain transition", even in permissive mode; the file_contexts shell_exec
+# entry only applies to a real system partition). wpa_supplicant below is the
+# working model: seclabel u:r:recovery:s0; oneshot so init never respawns the
+# script; disabled + `start` from the property trigger.
 service wpa_supplicant /system/bin/sh /system/bin/wpa_supplicant_wrapper.sh -iwlan0 -Dnl80211 -c/system/etc/wifi/wpa_supplicant.conf
     class core
     user root
@@ -142,8 +146,14 @@ service wpa_supplicant /system/bin/sh /system/bin/wpa_supplicant_wrapper.sh -iwl
     disabled
     seclabel u:r:recovery:s0
 
+service wlan_bringup /system/bin/sh /system/bin/wlan_bringup.sh
+    class core
+    user root
+    group root system wifi inet
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
 on property:sys.fox.wlan.up=1
-    # init's exec refuses a ramdisk script directly (label rootfs, no domain
-    # transition); exec the shell and let it run the script.
-    exec - root -- /system/bin/sh /system/bin/wlan_bringup.sh
+    start wlan_bringup
     setprop sys.fox.wlan.up 0
