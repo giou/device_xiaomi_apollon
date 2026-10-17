@@ -33,10 +33,10 @@ on:
         options: [none, kernel-ccache, of-ccache]
         default: none
       sync_jobs:
-        description: 'repo sync clone concurrency (upstream default is 4)'
+        description: 'repo sync clone concurrency (measured 2026-10-17: 8 and 16 land at the fast end of the j4 spread; 16 is no better than 8)'
         type: choice
         options: ['4', '8', '16']
-        default: '4'
+        default: '8'
 
 defaults:
   run:
@@ -167,7 +167,7 @@ jobs:
         # the requested value for A/B measurement and fail loud if the
         # expected upstream line disappeared.
         SYNC_JOBS_IN="${{ inputs.sync_jobs }}"
-        [ -z "${SYNC_JOBS_IN}" ] && SYNC_JOBS_IN=4
+        [ -z "${SYNC_JOBS_IN}" ] && SYNC_JOBS_IN=8
         if [[ "${SYNC_JOBS_IN}" != "4" ]]; then
           if grep -q "repo sync -c -j4 --no-clone-bundle --no-tags" orangefox_sync.sh; then
             sed -i "s/repo sync -c -j4 --no-clone-bundle --no-tags/repo sync -c -j${SYNC_JOBS_IN} --no-clone-bundle --no-tags/" orangefox_sync.sh
