@@ -37,9 +37,6 @@ FOX_MAINTAINER_PATCH_VERSION := 9
 # WiFi in recovery + fox_adbd (network ADB, incl. pairing) + web dashboard.
 # Needs the wpa_supplicant_8/ttyd sources (see twrp.dependencies) and the modem
 # partition mounted at /vendor/firmware_mnt in recovery (see recovery.fstab).
-OF_ENABLE_WLAN := 1
-FOX_REMOTE_DASHBOARD := 1
-FOX_MAINTAINER_PATCH_VERSION := 9
 >>>>>>> 6d6f2e7 (wlan: bring-up as a tested script + wrapper supplicant service; dashboard enabled; workflow: both|single variant build with -wlan asset tags)
 
 # Logical-partition toolkit — official/miatoll parity.
