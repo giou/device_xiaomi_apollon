@@ -1,12 +1,11 @@
 <!-- Release-notes TEMPLATE. Placeholders (%%LIKE_THIS%%) are substituted at
      build time by the workflow's "Compose release notes" step; browse a
      published release for the resolved text. -->
-## OrangeFox Recovery Build - Unofficial
-Banner: `R12.0_%%BUILD_VER%%`. The recovery UI (or the first line of its log) must show this version.
-Variants: plain-name assets are the mainline build; `-wlan` assets carry the wireless-adb / WLAN recovery features.
-Build: fox_%%MANIFEST_BRANCH%%
-Device: [Device Tree/Branch](%%DEVICE_TREE_URL%%/tree/%%DEVICE_TREE_BRANCH%%)
-Built from commit [%%COMMIT_ID%%](%%DEVICE_TREE_URL%%/commit/%%COMMIT_ID%%) + fork [%%FORK_HEAD%%](https://github.com/giou/Recovery/commit/%%FORK_HEAD%%).
+## OrangeFox Recovery R12.0_%%BUILD_VER%% (Unofficial)
+
+Flash check: the recovery UI and log line 1 must show `R12.0_%%BUILD_VER%%`.
+Assets: plain names = mainline build; `-wlan` = wireless-adb / WLAN recovery.
+Sources (fox_%%MANIFEST_BRANCH%%): [device tree @ `%%COMMIT_ID_SHORT%%`](%%DEVICE_TREE_URL%%/tree/%%DEVICE_TREE_BRANCH%%) + [fork @ `%%FORK_HEAD_SHORT%%`](https://github.com/giou/Recovery/commit/%%FORK_HEAD%%).
 
 Full feature list: [README](https://github.com/giou/device_xiaomi_apollon#readme)
 
