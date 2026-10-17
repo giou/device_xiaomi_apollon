@@ -30,23 +30,8 @@
 # confirmed in dmesg); hide the inert setting
 OF_USE_GREEN_LED := 0
 OF_MAINTAINER := giou
-<<<<<<< HEAD
 FOX_MAINTAINER_PATCH_VERSION := 9
-=======
 
-# WiFi in recovery + fox_adbd (network ADB, incl. pairing) + web dashboard.
-# Needs the wpa_supplicant_8/ttyd sources (see twrp.dependencies) and the modem
-# partition mounted at /vendor/firmware_mnt in recovery (see recovery.fstab).
->>>>>>> 6d6f2e7 (wlan: bring-up as a tested script + wrapper supplicant service; dashboard enabled; workflow: both|single variant build with -wlan asset tags)
-
-# Logical-partition toolkit — official/miatoll parity.
-#   OF_ENABLE_LPTOOLS=1            -> external/lptools (lptools binary)
-#   OF_ENABLE_ALL_PARTITION_TOOLS=1 -> also lpmake/lpadd/lpflash/lpunpack
-#                                      + lpdump/lpdumpd/bootctl
-# Supersedes the earlier TW_EXCLUDE_LPDUMP/TW_EXCLUDE_LPTOOLS purge (see
-# BoardConfig.mk). Requires external/lptools sources, which the OrangeFox
-# manifest ships (twrp-default.xml -> phhusson/vendor_lptools) and repo sync
-# clones — same as the official miatoll tree (flags only, no builder step).
 OF_ENABLE_LPTOOLS := 1
 OF_ENABLE_ALL_PARTITION_TOOLS := 1
 
