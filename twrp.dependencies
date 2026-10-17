@@ -16,5 +16,17 @@
     "repository": "OrangeFox16/android_external_ttyd",
     "target_path": "external/ttyd",
     "branch": "fox_16.0"
+  },
+  {
+    "remote": "github",
+    "repository": "OrangeFox16/android_external_rclone",
+    "target_path": "external/rclone",
+    "branch": "fox_16.0"
+  },
+  {
+    "remote": "github",
+    "repository": "OrangeFox16/android_external_libfuse",
+    "target_path": "external/libfuse",
+    "branch": "fox_16.0"
   }
 ]
