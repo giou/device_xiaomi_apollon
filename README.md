@@ -2,8 +2,6 @@
 
 This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv1 and metadata wrappedkey. It also works on LineageOS 23.2, which uses the same FBEv1 policy.
 
-See [docs/DECRYPT-STALL.md](docs/DECRYPT-STALL.md) for the open decrypt-stall dossier.
-
 ## Features and custom changes
 
 - Data decryption for LineageOS 24
