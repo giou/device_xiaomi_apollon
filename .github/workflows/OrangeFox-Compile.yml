@@ -27,6 +27,11 @@ on:
         type: choice
         options: [both, single]
         default: both
+      probe:
+        description: 'measurement-only run that stops after the kernel step'
+        type: choice
+        options: [none, kernel-ccache]
+        default: none
 
 defaults:
   run:
@@ -120,6 +125,7 @@ jobs:
       run: |
         set -euo pipefail
         sudo apt-get update -qq
+        sudo apt-get install -y -qq ccache
         git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
         cd scripts
         sudo bash setup/android_build_env.sh
@@ -280,6 +286,20 @@ jobs:
         export PATH="${CLANG_DIR}/bin:${PATH}"
         clang --version | head -n 1
 
+        # ccache probe: wrap the kernel compiles and report the cache's size
+        # and hit stats at the end. CCACHE_DIR is runner-local here - nothing
+        # is persisted by this workflow; the numbers decide whether a
+        # persisted cache is worth the repo's 10 GB cache quota.
+        export CCACHE_DIR="${RUNNER_TEMP}/ccache"
+        export CCACHE_COMPRESS=1
+        export CCACHE_MAXSIZE=10G
+        ccache -z >/dev/null 2>&1 || true
+        KERNEL_CC="clang"
+        if command -v ccache >/dev/null 2>&1; then
+          KERNEL_CC="ccache clang"
+          echo "ccache: $(ccache --version | head -n 1) (wrapping CC)"
+        fi
+
         # LineageOS's config set for apollon: the three entries in
         # sm8250-common's BoardConfigCommon.mk, plus the fragment apollon's
         # BoardConfig appends. That last one carries the Xiaomi board symbol,
@@ -304,9 +324,15 @@ jobs:
             || { echo "::error::CONFIG_${sym} missing from the merged config - wrong fragments, review manually."; exit 1; }
         done
 
-        make O=out ARCH=arm64 LLVM=1 -j"$(nproc)" Image
+        make O=out ARCH=arm64 LLVM=1 CC="${KERNEL_CC}" -j"$(nproc)" Image
 
         strings out/arch/arm64/boot/Image | grep -m1 "Linux version" || true
+
+        echo "== kernel ccache report =="
+        ccache -s 2>/dev/null || true
+        echo "ccache dir size:"
+        du -sh "${CCACHE_DIR}" 2>/dev/null || echo "(no ccache dir)"
+        echo "ccache files: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
 
         install -m 644 out/arch/arm64/boot/Image \
           "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel"
@@ -320,6 +346,7 @@ jobs:
         df -h "${GITHUB_WORKSPACE}" | tail -n 1
 
     - name: Building OrangeFox
+      if: ${{ inputs.probe != 'kernel-ccache' }}
       env:
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
@@ -380,6 +407,7 @@ jobs:
         fi
 
     - name: Rename assets with maintainer tag
+      if: ${{ inputs.probe != 'kernel-ccache' }}
       # Maintainer patch version rides the banner (R12.0_<n>) and the release
       # title, but the vendor packaging script names the files without it
       # (OrangeFox-R12.0-Unofficial-apollon.*). Rename so the files carry it:
@@ -415,7 +443,7 @@ jobs:
         ls -lh "${OUT_DIR}"/OrangeFox*
 
     - name: Swap to the other variant
-      if: ${{ inputs.build == 'both' }}
+      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
       # Same runner, same workspace: the manifest and the kernel are shared,
       # only the device tree files and bootable/recovery swap -> the second
       # build is incremental (no from-scratch compile).
@@ -449,7 +477,7 @@ jobs:
         git -C bootable/recovery log --oneline -2
 
     - name: Build the other variant (incremental)
-      if: ${{ inputs.build == 'both' }}
+      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
       env:
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
         FOX_DELETE_AROMAFM: '1'
@@ -464,7 +492,7 @@ jobs:
         mka adbd "${BUILD_TARGET}image"
 
     - name: Rename the other variant assets
-      if: ${{ inputs.build == 'both' }}
+      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
       run: |
         set -euo pipefail
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
@@ -491,6 +519,7 @@ jobs:
         ls -lh "${OUT_DIR}"/OrangeFox*
 
     - name: Upload to Release
+      if: ${{ inputs.probe != 'kernel-ccache' }}
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, pinned 2026-10-14
       with:
         files: |
