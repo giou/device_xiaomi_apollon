@@ -422,15 +422,29 @@ jobs:
       run: |
         set -euo pipefail
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        OUT_DIR="${FOX_ROOT}/out/target/product/${DEVICE_NAME}"
+        # The freshly built kernel and the fetched Magisk addon are
+        # variant-independent; the sibling tree carries its own (stale)
+        # prebuilt kernel and no fetched Magisk zip, so carry both over.
+        mkdir -p "${RUNNER_TEMP}/carry"
+        cp "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel" "${RUNNER_TEMP}/carry/kernel"
+        cp "${FOX_ROOT}/${DEVICE_PATH}/magisk/Magisk-v31.0.zip" "${RUNNER_TEMP}/carry/Magisk-v31.0.zip"
         cd "${GITHUB_WORKSPACE}"
         git fetch --depth=1 origin "${OTHER_DT_BRANCH}"
         rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
         mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
         git archive FETCH_HEAD | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
+        install -m 644 "${RUNNER_TEMP}/carry/kernel" "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel"
+        mkdir -p "${FOX_ROOT}/${DEVICE_PATH}/magisk"
+        install -m 644 "${RUNNER_TEMP}/carry/Magisk-v31.0.zip" "${FOX_ROOT}/${DEVICE_PATH}/magisk/Magisk-v31.0.zip"
         cd "${FOX_ROOT}"
         rm -rf bootable/recovery
         git clone --depth=1 --single-branch --branch "${OTHER_FORK_BRANCH}" \
           https://github.com/giou/Recovery.git bootable/recovery
+        # Drop the primary variant's ramdisk staging: install rules never remove
+        # files the sibling variant placed there (e.g. wlan binaries would ride
+        # into the mainline ramdisk); the staging is cheap to regenerate.
+        rm -rf "${OUT_DIR}/recovery/root"
         echo "Swapped to ${OTHER_VARIANT}: dt=${OTHER_DT_BRANCH} fork=${OTHER_FORK_BRANCH}"
         git -C bootable/recovery log --oneline -2
 
