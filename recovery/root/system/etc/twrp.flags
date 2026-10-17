@@ -4,8 +4,9 @@
 /cache                     ext4                /dev/block/bootdevice/by-name/cache                    flags=backup=1;wipeingui;wipeduringfactoryreset;canencryptbackup
 
 # Internal storage backup (ground rule C): separate from /data so media
-# can be backed up on its own (same line as official miatoll)
-/storage                   auto                /data/media/0                                            flags=display="Internal Storage";usermrf;backup=1;fsflags="bind,utf8";removable
+# can be backed up on its own (same line as official miatoll). canencryptbackup
+# so the media backup honors the encryption toggle (type 3, like /data).
+/storage                   auto                /data/media/0                                            flags=display="Internal Storage";usermrf;backup=1;canencryptbackup;fsflags="bind,utf8";removable
 
 # super
 /system                    ext4                /dev/block/mapper/system                               flags=display="system";logical
