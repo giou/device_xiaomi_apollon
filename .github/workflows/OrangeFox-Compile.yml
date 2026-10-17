@@ -60,7 +60,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
     steps:
     - name: Checkout
-      uses: actions/checkout@v5
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, pinned 2026-10-17 (node24: silences the punycode/url.parse deprecations)
 
     - name: Validate config
       run: |
@@ -128,7 +128,7 @@ jobs:
       # modules). out/ is the sandbox-writable area, so out/ccache-of works
       # and persists. The kernel make build has no sandbox; its dir stays at
       # the workspace root.
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, pinned 2026-10-17 (node24 + ESM: silences the deprecations)
       with:
         path: |
           ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/ccache-of
@@ -138,7 +138,7 @@ jobs:
           ccache-${{ env.MANIFEST_BRANCH }}-v1-
 
     - name: Clean-up
-      uses: rokibhasansagar/slimhub_actions@c2a6e4317d3de2b623ac7395b05e9d2149e8289b # main, pinned 2026-10-14
+      uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
 
     - name: Swap Space
       uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # master, pinned 2026-10-14
@@ -633,7 +633,7 @@ jobs:
           echo "### Changes in this build (since release ${PREV_TAG:-unknown})"
           DT_LOG="$(gh api "repos/${REPO}/compare/${PREV_DT}...${COMMIT_ID}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
           if [[ -n "${PREV_DT}" && -n "${DT_LOG}" ]]; then
-            echo "dt:"
+            echo "device tree:"
             printf '%s\n' "${DT_LOG}" | head -n 30 || true
           else
             echo "- dt range unavailable (previous release carries no markers); full history applies."
@@ -643,7 +643,7 @@ jobs:
             FORK_LOG="$(gh api "repos/giou/Recovery/compare/${PREV_FORK}...${FORK_HEAD}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
           fi
           if [[ -n "${FORK_LOG}" ]]; then
-            echo "fork:"
+            echo "recovery fork:"
             printf '%s\n' "${FORK_LOG}" | head -n 30 || true
           else
             echo "- fork range unavailable (previous release carries no markers); see fork history."
@@ -679,7 +679,7 @@ jobs:
 
     - name: Upload to Release
       if: ${{ inputs.probe == 'none' }}
-      uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, pinned 2026-10-14
+      uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3, pinned 2026-10-17
       with:
         files: |
           OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
