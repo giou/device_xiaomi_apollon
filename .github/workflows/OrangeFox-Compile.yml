@@ -297,6 +297,11 @@ jobs:
         system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
         bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon
         EOF
+        # Record the fork HEAD for the auto-generated release notes (each
+        # published body carries dt+fork markers so the next build can diff
+        # exactly what changed since).
+        echo "FORK_HEAD=$(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)" >> "${GITHUB_ENV}"
+        echo "fork HEAD for release notes: $(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)"
 
     - name: Build the kernel from the apollon fork
       run: |
@@ -594,6 +599,70 @@ jobs:
         fi
         ls -lh "${OUT_DIR}"/OrangeFox*
 
+    - name: Compose release notes
+      # Fully automatic: static template from the tree (RELEASE_NOTES.md) +
+      # placeholders, plus a "Changes in this build" section diffed against
+      # the previous release's embedded dt/fork markers. No human edit step.
+      id: compose-notes
+      if: ${{ inputs.probe == 'none' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        set -euo pipefail
+        REPO="${{ github.repository }}"
+        TPL="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/RELEASE_NOTES.md"
+        [[ -f "${TPL}" ]] || { echo "::error::RELEASE_NOTES.md missing at ${TPL}."; exit 1; }
+
+        # Previous release anchors: each published body embeds its source SHAs.
+        PREV_TAG="$(gh release list -R "${REPO}" --limit 10 --json tagName,createdAt --jq 'sort_by(.createdAt) | last(.[]).tagName' 2>/dev/null || true)"
+        PREV_BODY="$(gh release view "${PREV_TAG}" -R "${REPO}" --json body --jq '.body' 2>/dev/null || true)"
+        MARKERS="$(printf '%s' "${PREV_BODY}" | grep -oE '<!-- dt-sha:[0-9a-f]{40} fork-sha:[0-9a-f]{40} -->' || true)"
+        PREV_DT="$(printf '%s' "${MARKERS}" | grep -oE 'dt-sha:[0-9a-f]{40}' | cut -d: -f2 || true)"
+        PREV_FORK="$(printf '%s' "${MARKERS}" | grep -oE 'fork-sha:[0-9a-f]{40}' | cut -d: -f2 || true)"
+
+        AUTO_TMP="$(mktemp)"
+        {
+          echo "### Changes in this build (since release ${PREV_TAG:-unknown})"
+          DT_LOG="$(gh api "repos/${REPO}/compare/${PREV_DT}...${COMMIT_ID}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
+          if [[ -n "${PREV_DT}" && -n "${DT_LOG}" ]]; then
+            echo "dt:"
+            printf '%s\n' "${DT_LOG}" | head -n 30 || true
+          else
+            echo "- dt range unavailable (previous release carries no markers); full history applies."
+          fi
+          FORK_LOG=""
+          if [[ -n "${PREV_FORK:-}" && -n "${FORK_HEAD:-}" ]]; then
+            FORK_LOG="$(gh api "repos/giou/Recovery/compare/${PREV_FORK}...${FORK_HEAD}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
+          fi
+          if [[ -n "${FORK_LOG}" ]]; then
+            echo "fork:"
+            printf '%s\n' "${FORK_LOG}" | head -n 30 || true
+          else
+            echo "- fork range unavailable (previous release carries no markers); see fork history."
+          fi
+          echo "<!-- dt-sha:${COMMIT_ID} fork-sha:${FORK_HEAD:-unknown} -->"
+        } > "${AUTO_TMP}"
+
+        COMPOSED="$(mktemp)"
+        sed -e "s|%%BUILD_VER%%|${BUILD_VER}|g" \
+            -e "s|%%MANIFEST_BRANCH%%|${MANIFEST_BRANCH}|g" \
+            -e "s|%%DEVICE_TREE_URL%%|${DEVICE_TREE_URL}|g" \
+            -e "s|%%DEVICE_TREE_BRANCH%%|${DEVICE_TREE_BRANCH}|g" \
+            -e "s|%%COMMIT_ID%%|${COMMIT_ID}|g" \
+            -e "s|%%FORK_HEAD%%|${FORK_HEAD:-unknown}|g" \
+            "${TPL}" > "${COMPOSED}"
+        {
+          echo "body<<RELEASE_NOTES_EOF"
+          python3 - "${COMPOSED}" "${AUTO_TMP}" <<'EOF'
+        import sys
+        tpl = open(sys.argv[1]).read()
+        auto = open(sys.argv[2]).read()
+        sys.stdout.write(tpl.replace("%%AUTO_CHANGES%%", auto))
+        EOF
+          echo "RELEASE_NOTES_EOF"
+        } >> "${GITHUB_OUTPUT}"
+        rm -f "${AUTO_TMP}" "${COMPOSED}"
+
     - name: Upload to Release
       if: ${{ inputs.probe == 'none' }}
       uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3, pinned 2026-10-14
@@ -604,20 +673,4 @@ jobs:
         name: OrangeFox Recovery for ${{ env.DEVICE_NAME }} // ${{ env.BUILD_DATE }} (R12.0_${{ env.BUILD_VER }})
         tag_name: ${{ github.run_id }}
         fail_on_unmatched_files: true
-        body: |
-          ## OrangeFox Recovery Build - Unofficial
-          Banner: `R12.0_${{ env.BUILD_VER }}`. The recovery UI (or the first line of its log) must show this version.
-          Variants: plain-name assets are the mainline build; `-wlan` assets carry the wireless-adb / WLAN recovery features.
-          Build: fox_${{ env.MANIFEST_BRANCH }}
-          Device: [Device Tree/Branch](${{ env.DEVICE_TREE_URL }}/tree/${{ env.DEVICE_TREE_BRANCH }})
-          Built from commit [${{ env.COMMIT_ID }}](${{ env.DEVICE_TREE_URL }}/commit/${{ env.COMMIT_ID }}).
-
-          ### What this fork changes (vs stock OrangeFox)
-          - Decrypt: LOS 24 FBEv1, TEE cleanup after decrypt, readable file names after `/data` remount
-          - Stall prevention: TEE start waits for storage readiness (bounded poll)
-          - USB/OTG: automatic mount on plug-in, MTP restored on failure
-          - MTP: correct dates in Windows
-          - Backups: encrypted backups enabled
-          - Build: logical partition tools, Magisk 31, source-built kernel (LOS config), boot blobs from LOS
-          - Wireless (`-wlan` variants): WLAN in recovery, network ADB with pairing, remote web access (dashboard + terminal)
-          - Full list: [README](${{ env.DEVICE_TREE_URL }}/blob/${{ env.DEVICE_TREE_BRANCH }}/README.md)
+        body: ${{ steps.compose-notes.outputs.body }}
