@@ -34,7 +34,10 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 | OTA assert | `apollon,apollo,apollopro` |
 | Kernel | 4.19.325, built from source (`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI). `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
 
-Branch **`fox_16.0`** is the default. It builds Android 16 native code with the `fox_16.0` manifest (SDK 36).
+## Branches
+
+- **`fox_16.0`** — mainline (default). Builds Android 16 native code with the `fox_16.0` manifest (SDK 36).
+- **`fox_16.0-wlan`** — mainline plus the wireless recovery work (WLAN bring-up and hands-off autostart, network ADB on a fixed port, Network Storage/NAS). See that branch's README for the full list.
 
 ## Credits
 
