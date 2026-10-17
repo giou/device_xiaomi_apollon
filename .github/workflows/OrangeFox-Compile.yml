@@ -32,6 +32,11 @@ on:
         type: choice
         options: [none, kernel-ccache]
         default: none
+      sync_jobs:
+        description: 'repo sync clone concurrency (upstream default is 4)'
+        type: choice
+        options: ['4', '8', '16']
+        default: '4'
 
 defaults:
   run:
@@ -144,6 +149,22 @@ jobs:
         rm -rf sync
         git clone --depth=1 https://gitlab.com/OrangeFox/sync.git -b master
         cd sync
+        # repo sync's -j is clone-job concurrency (network-bound), not core
+        # count; the upstream script hardcodes -j4 for fox_16.0. Patch it to
+        # the requested value for A/B measurement and fail loud if the
+        # expected upstream line disappeared.
+        SYNC_JOBS_IN="${{ inputs.sync_jobs }}"
+        [ -z "${SYNC_JOBS_IN}" ] && SYNC_JOBS_IN=4
+        if [[ "${SYNC_JOBS_IN}" != "4" ]]; then
+          if grep -q "repo sync -c -j4 --no-clone-bundle --no-tags" orangefox_sync.sh; then
+            sed -i "s/repo sync -c -j4 --no-clone-bundle --no-tags/repo sync -c -j${SYNC_JOBS_IN} --no-clone-bundle --no-tags/" orangefox_sync.sh
+            echo "patched repo sync jobs to ${SYNC_JOBS_IN}:"
+            grep -n "repo sync -c -j" orangefox_sync.sh
+          else
+            echo "::error::expected 'repo sync -c -j4' line not found in orangefox_sync.sh - upstream changed, review manually."
+            exit 1
+          fi
+        fi
         # Upstream hosts (gitlab.com, android.googlesource.com) flake with
         # transient 503s mid-sync (killed two runs: vendor/recovery, then
         # libbootloader). repo sync resumes partial checkouts, so re-running
