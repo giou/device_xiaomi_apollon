@@ -306,6 +306,26 @@ jobs:
         echo "FORK_HEAD=$(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)" >> "${GITHUB_ENV}"
         echo "fork HEAD for release notes: $(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)"
 
+    - name: Patch adbd TLS server to honor the requested port
+      # The AOSP daemon binds its paired-ADB TLS server on port 0 (random) by
+      # design: adb_wifi.cpp only watches persist.adb.tls_server.enable. Make
+      # it read service.adb.tls_server.port so the recovery's fixed port
+      # request (fox_adbd StartSecure) is honored. Fail loud if the source
+      # line ever moves, so the next sync cannot silently revert the port to
+      # random.
+      run: |
+        set -euo pipefail
+        ADBWIFI="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/packages/modules/adb/daemon/adb_wifi.cpp"
+        if [[ ! -f "${ADBWIFI}" ]]; then
+          echo "::error::${ADBWIFI} missing - adb module layout changed, review manually."
+          exit 1
+        fi
+        sed -i 's|sTlsServer = new TlsServer(0);|sTlsServer = new TlsServer(android::base::GetIntProperty("service.adb.tls_server.port", 0));|' "${ADBWIFI}"
+        grep -q 'GetIntProperty("service.adb.tls_server.port"' "${ADBWIFI}" \
+          || { echo "::error::adbd TLS port patch did not apply - source changed, review manually."; exit 1; }
+        echo "adbd TLS port patch applied:"
+        grep -n 'new TlsServer' "${ADBWIFI}"
+
     - name: Build the kernel from the apollon fork
       run: |
         set -eo pipefail
