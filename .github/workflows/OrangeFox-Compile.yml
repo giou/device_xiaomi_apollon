@@ -329,6 +329,11 @@ jobs:
         export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache"
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=1000M
+        # Fresh repo syncs give the prebuilt clang a new mtime every run,
+        # which would fail ccache's default mtime compiler check and zero the
+        # warm hit rate. Pin compiler identity to the toolchain version string
+        # instead (it changes only when Lineage actually bumps the prebuilt).
+        export CCACHE_COMPILERCHECK="string:$("${CLANG_DIR}/bin/clang" --version | head -n 1)"
         ccache -z >/dev/null 2>&1 || true
         KERNEL_CC="clang"
         if command -v ccache >/dev/null 2>&1; then
@@ -365,7 +370,7 @@ jobs:
         strings out/arch/arm64/boot/Image | grep -m1 "Linux version" || true
 
         echo "== kernel ccache report =="
-        ccache -s 2>/dev/null || true
+        ccache -s -v 2>/dev/null || true
         echo "ccache dir size:"
         du -sh "${CCACHE_DIR}" 2>/dev/null || echo "(no ccache dir)"
         echo "ccache files: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
@@ -408,11 +413,16 @@ jobs:
         export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache-of"
         export CCACHE_COMPRESS=1
         export CCACHE_MAXSIZE=8500M
+        # Same mtime-churn problem as the kernel step (fresh sync each run):
+        # pin compiler identity to the tree prebuilt's version string.
+        OF_CLANG="$(echo "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"/prebuilts/clang/host/linux-x86/clang-*/bin/clang | awk '{print $1}')"
+        export CCACHE_COMPILERCHECK="string:$("${OF_CLANG}" --version | head -n 1)"
         echo "USE_CCACHE=1" >> "${GITHUB_ENV}"
         echo "CCACHE_EXEC=${CCACHE_EXEC}" >> "${GITHUB_ENV}"
         echo "CCACHE_DIR=${CCACHE_DIR}" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPRESS=1" >> "${GITHUB_ENV}"
         echo "CCACHE_MAXSIZE=8500M" >> "${GITHUB_ENV}"
+        echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
         echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
         set +e +u
         set +o pipefail
@@ -426,7 +436,7 @@ jobs:
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
           echo "== of build ccache report (primary) =="
-          ccache -s 2>/dev/null || true
+          ccache -s -v 2>/dev/null || true
           echo "ccache dir size:"
           du -sh "${CCACHE_DIR:-/nonexistent}" 2>/dev/null || echo "(no ccache dir)"
           echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
@@ -553,7 +563,7 @@ jobs:
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
           echo "== of build ccache report (second variant, cumulative) =="
-          ccache -s 2>/dev/null || true
+          ccache -s -v 2>/dev/null || true
           echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
         fi
 
