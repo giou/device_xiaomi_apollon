@@ -129,7 +129,13 @@ service vendor.qti.vibrator /vendor/bin/hw/vendor.qti.hardware.vibrator.service
 #   3. fs_ready releases the boot (regulators, PCIe link, MHI, firmware load).
 #   4. Wait for wlan0 (the host driver probes on FW-ready), then start the
 #      supplicant and clear the trigger.
-service wpa_supplicant /system/bin/wpa_supplicant -iwlan0 -Dnl80211 -c/system/etc/wifi/wpa_supplicant.conf -s
+#   4. cnss-daemon: performs the WLFW service request -> "FW ready indication".
+#   5. write "ON" to /dev/wlan: the qcwlanstate char device calls the qcacld
+#      driver load -> wlan0 appears.
+#   6. wait for wlan0, then start the supplicant service.
+# The bring-up lived in raw `exec ... sh -c` lines before; those failed
+# silently at trigger time (init exec semantics) - hence one script now.
+service wpa_supplicant /system/bin/sh /system/bin/wpa_supplicant_wrapper.sh -iwlan0 -Dnl80211 -c/system/etc/wifi/wpa_supplicant.conf
     class core
     user root
     group root system wifi inet
@@ -137,13 +143,5 @@ service wpa_supplicant /system/bin/wpa_supplicant -iwlan0 -Dnl80211 -c/system/et
     seclabel u:r:recovery:s0
 
 on property:sys.fox.wlan.up=1
-    mkdir /vendor 0755
-    mkdir /vendor/firmware_mnt 0755
-    mkdir /tmp/recovery/sockets 0777
-    exec - root -- /system/bin/sh -c "mount | grep -q ' /vendor ' || mount -t erofs -o ro /dev/block/mapper/vendor /vendor"
-    exec - root -- /system/bin/sh -c "mount | grep -q ' /vendor/firmware_mnt ' || mount -t vfat -o ro,shortname=lower /dev/block/by-name/modem /vendor/firmware_mnt"
-    exec - root -- /system/bin/sh -c "/vendor/bin/qrtr-ns >/dev/null 2>&1 &"
-    write /sys/kernel/cnss/fs_ready 1
-    exec - root -- /system/bin/wlan_wait_iface.sh wlan0
-    start wpa_supplicant
+    exec - root -- /system/bin/wlan_bringup.sh
     setprop sys.fox.wlan.up 0
