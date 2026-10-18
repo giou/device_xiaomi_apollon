@@ -237,6 +237,22 @@ jobs:
             exit 1
           fi
         fi
+        # Upstream's 2026-10-18 fox.xml commit (eb1e5d7) adds three projects
+        # that anonymous builds cannot fetch (private/unpublished:
+        # external/libarchive, external/libfuse3, prebuilts/fox-go) and a
+        # manifest-level external/rclone that collides with the device tree's
+        # own rclone clone (twrp.dependencies). Build from the pinned
+        # public-good snapshot (2026-10-01) in giou/Manifest instead; the pin
+        # lives in that repo's fox_16.0 branch, so repo sync cannot undo it.
+        # shortcut: drop this once upstream publishes those projects and the
+        # dt stops cloning rclone/libfuse itself.
+        if grep -q "https://gitlab.com/OrangeFox/Manifest.git" orangefox_sync.sh; then
+          sed -i "s#https://gitlab.com/OrangeFox/Manifest.git#https://github.com/giou/Manifest.git#" orangefox_sync.sh
+          grep -n "Manifest.git" orangefox_sync.sh
+        else
+          echo "::error::expected the OrangeFox Manifest URL in orangefox_sync.sh - upstream changed, review manually."
+          exit 1
+        fi
         # Upstream hosts (gitlab.com, android.googlesource.com) flake with
         # transient 503s mid-sync (killed two runs: vendor/recovery, then
         # libbootloader). repo sync resumes partial checkouts, so re-running
