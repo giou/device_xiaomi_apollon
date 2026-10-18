@@ -293,12 +293,14 @@ jobs:
         print("TWRP dependencies cloned.")
         EOF
 
-    - name: Override forked sources (vold, bootable/recovery)
+    - name: Override forked sources (vold, bootable/recovery, foxcli)
       # Our forks replace the synced copies wholesale: deterministic, shallow,
       # auditable, and nothing re-syncs afterwards so .repo staleness is
       # harmless. system/vold carries the CE re-apply change (fscrypt's
       # per-superblock keyring dies with the /data mount -> ciphertext names on
-      # remount); bootable/recovery carries the apollon fixes.
+      # remount); bootable/recovery carries the apollon fixes;
+      # external/foxcli carries the `internal unlock` subcommand the upstream
+      # CLI enum lacks (the engine has the verb since R12.0_16).
       # Entry format: <tree path>|<repo>|<branch>
       run: |
         set -euo pipefail
@@ -320,6 +322,7 @@ jobs:
         done <<'EOF'
         system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
         bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon-wlan
+        external/foxcli|https://github.com/giou/foxcli|master
         EOF
         # Record the fork HEAD for the auto-generated release notes (each
         # published body carries dt+fork markers so the next build can diff
