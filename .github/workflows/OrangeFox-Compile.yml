@@ -144,10 +144,38 @@ jobs:
     - name: Clean-up
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
 
-    - name: Swap Space
-      uses: pierotofy/set-swap-space@fc79b3f67fa8a838184ce84a674ca12238d2c761 # master, pinned 2026-10-14
-      with:
-        swap-size-gb: 24
+    - name: Swap Space (zram first, disk swap on the second disk)
+      # Memory-pressure mitigations (2026-10-18): the runner lost
+      # communication three times because Soong's analysis is the build's
+      # memory peak on a 4-core/15 GB runner. Put the disk swap on /mnt (a
+      # separate device from the build's out/) so swap I/O stops competing
+      # with the build, and give it a zram swap at higher priority so the
+      # common pressure is absorbed in compressed RAM without disk I/O at
+      # all. Both are mitigations, not a root-cause fix - the root fix is a
+      # bigger machine (self-hosted runner).
+      run: |
+        set -euo pipefail
+        SWAPFILE=/swapfile
+        if [ "$(stat -c %d /mnt)" != "$(stat -c %d /)" ]; then
+          SWAPFILE=/mnt/swapfile
+        fi
+        sudo swapoff -a || true
+        sudo rm -f /swapfile /mnt/swapfile
+        sudo fallocate -l 24G "${SWAPFILE}" || sudo dd if=/dev/zero of="${SWAPFILE}" bs=1M count=24576 status=none
+        sudo chmod 600 "${SWAPFILE}"
+        sudo mkswap -q "${SWAPFILE}" >/dev/null
+        sudo swapon -p 10 "${SWAPFILE}"
+        if sudo modprobe zram 2>/dev/null && [ -e /dev/zram0 ]; then
+          echo 6G | sudo tee /sys/block/zram0/disksize >/dev/null
+          sudo mkswap -q /dev/zram0 >/dev/null
+          sudo swapon -p 100 /dev/zram0
+          echo "zram swap active (6G, priority 100)"
+        else
+          echo "::warning::zram unavailable on this image - disk swap only"
+        fi
+        echo "disk swap: ${SWAPFILE}"
+        swapon --show
+        df -h / /mnt | tail -2
 
     - name: Tune memory for the analysis phase
       # 2026-10-18: two runs died with "The hosted runner lost communication
@@ -159,7 +187,11 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        sudo sysctl -w vm.swappiness=10
+        # With zram at priority 100 (fast, RAM-backed) the kernel should
+        # prefer swapping to it over evicting the file cache; the disk swap
+        # (priority 10) is only the overflow, so the old thrash concern is
+        # gone. 100 = swap freely into compressed RAM.
+        sudo sysctl -w vm.swappiness=100
         for p in $(pgrep -f 'Runner\.' || true); do
           echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
         done
@@ -493,6 +525,20 @@ jobs:
         # 16.0 is the only manifest this builder supports; it needs the
         # release-qualified combo: bp2a for the android-16.0.0 base.
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
+        # Memory guard (2026-10-18): keep the build's peak inside a cgroup so
+        # the kernel throttles it (memory.high) and, past the hard limits,
+        # OOM-kills a build process inside the cgroup - a visible, logged,
+        # retryable failure - instead of thrashing the whole VM until the
+        # runner agent stalls and GitHub declares the runner lost.
+        if sudo mkdir -p /sys/fs/cgroup/ofbuild \
+           && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
+           && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
+           && echo 10G | sudo tee /sys/fs/cgroup/ofbuild/memory.swap.max >/dev/null \
+           && echo $$ | sudo tee /sys/fs/cgroup/ofbuild/cgroup.procs >/dev/null; then
+          echo "build cgroup: high=13G max=15G swap.max=10G"
+        else
+          echo "::warning::cgroup limits unavailable - running unguarded"
+        fi
         mka adbd "${BUILD_TARGET}image"
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
@@ -647,6 +693,16 @@ jobs:
         source build/envsetup.sh
         set -e
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
+        # Same memory guard as the primary build (see above).
+        if sudo mkdir -p /sys/fs/cgroup/ofbuild \
+           && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
+           && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
+           && echo 10G | sudo tee /sys/fs/cgroup/ofbuild/memory.swap.max >/dev/null \
+           && echo $$ | sudo tee /sys/fs/cgroup/ofbuild/cgroup.procs >/dev/null; then
+          echo "build cgroup: high=13G max=15G swap.max=10G"
+        else
+          echo "::warning::cgroup limits unavailable - running unguarded"
+        fi
         mka adbd "${BUILD_TARGET}image"
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
