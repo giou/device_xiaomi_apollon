@@ -5,7 +5,9 @@ name: Upstream Drift Watch
 # nothing. Red (exit 1) means "act on the summary": for kernel/vendor/vold
 # that is refresh + device-test decrypt, for foxcli a fork merge, and for the
 # manifest only when upstream becomes anonymous-fetchable again (plain
-# manifest drift is reported, not red). Green means "no drift".
+# manifest drift is reported, not red). Recovery-fork and kernel-fork drift
+# is info only - triage / rebase, not a release blocker. Green means "no
+# drift".
 #
 # Anchors (bump after the corresponding action):
 # - KERNEL_BASE: LOS kernel commit our dtb/recovery_dtbo blobs were extracted
@@ -13,6 +15,8 @@ name: Upstream Drift Watch
 #   fork now, so drift here means the blob source moved.
 # - VENDOR_SINCE: date our recovery/root blobs were proven good.
 # - VOLDS_BASE: OrangeFox system/vold commit our fork was cut from.
+# - RECOVERY_BASE: OrangeFox bootable/Recovery commit our fork was cut from
+#   (bump after reviewing new upstream commits for cherry-picks).
 # - MANIFEST_PIN: giou/Manifest fox_16.0 commit we build from (pinned because
 #   upstream's 2026-10-18 fox.xml pins projects anonymous builds cannot
 #   fetch).
@@ -22,7 +26,8 @@ name: Upstream Drift Watch
 #
 # Covers the decrypt-critical set: dtb/recovery_dtbo (LOS boot image source),
 # gatekeeper/keymaster/qseecomd + vintf blobs (TheMuppets vendor) - plus the
-# two OrangeFox forks we carry (vold, foxcli) and the manifest pin.
+# forks we carry (vold, foxcli, bootable/recovery, the kernel) and the
+# manifest pin.
 
 on:
   schedule:
@@ -46,6 +51,7 @@ jobs:
       KERNEL_BRANCH: lineage-24.0
       VENDOR_SINCE: 2026-10-12
       VOLDS_BASE: 953de9608eb78380b3c4e39e801c2bc0af7dbddc
+      RECOVERY_BASE: 0f7831d3240f4c3925a0b5fd7d2c907ddf8704c2
       MANIFEST_PIN: 4c65ca28fa67580172ee6bf99892a054c19dcebe
       FOXCLI_BASE: ce8125d5dba50b3c03e8c674221206bb7ce5c705
     steps:
@@ -111,6 +117,37 @@ jobs:
             } | tee -a "${GITHUB_STEP_SUMMARY}"
           else
             echo "- system/vold: no drift (fork base == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          echo "=== recovery fork (giou/Recovery) vs OrangeFox fox_16.0 ==="
+          curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2Fbootable%2FRecovery/repository/compare?from=${RECOVERY_BASE}&to=fox_16.0" -o /tmp/recovery-compare.json
+          RN=$(python3 -c "import json; print(len(json.load(open('/tmp/recovery-compare.json')).get('commits', [])))")
+          echo "upstream recovery commits since our fork point: ${RN}"
+          if [[ "${RN}" != "0" ]]; then
+            {
+              echo "#### Recovery fork drift (info): ${RN} upstream commit(s) since ${RECOVERY_BASE:0:8}"
+              echo "     (review for cherry-picks; bump RECOVERY_BASE once reviewed)"
+              python3 -c "
+          import json
+          for c in json.load(open('/tmp/recovery-compare.json')).get('commits', [])[:15]:
+              print('- %s %s %s' % (c['short_id'], c['created_at'][:10], c['title'][:90]))
+          "
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Recovery fork: no drift (fork point == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          echo "=== kernel fork (lineage-24.0-apollon) vs LOS lineage-24.0 ==="
+          curl -sfL --retry 3 "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/lineage-24.0...giou:lineage-24.0-apollon" -o /tmp/kernel-fork-compare.json
+          KB=$(python3 -c "import json; print(json.load(open('/tmp/kernel-fork-compare.json')).get('behind_by', '?'))")
+          echo "kernel fork commits behind LOS: ${KB}"
+          if [[ "${KB}" != "0" ]]; then
+            {
+              echo "#### Kernel fork drift (info): ${KB} LOS commit(s) not in lineage-24.0-apollon"
+              echo "     (rebase the apollon patches onto LOS before the next release)"
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Kernel fork: in sync with LOS (ahead by the apollon patches only)" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
           echo "=== OrangeFox manifest: upstream vs our pin ==="
