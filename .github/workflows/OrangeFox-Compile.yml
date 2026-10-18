@@ -145,6 +145,23 @@ jobs:
       with:
         swap-size-gb: 24
 
+    - name: Tune memory for the analysis phase
+      # 2026-10-18: two runs died with "The hosted runner lost communication
+      # with the server" 42-48 min into Building OrangeFox - exactly Soong's
+      # long silent analysis, the memory peak of the whole build. The swap
+      # file lives on the same disk as the build, so heavy swapping starves
+      # the runner agent. Swap late (keep hot pages in RAM) and take the
+      # agent out of the OOM victim pool so a spike kills a build process
+      # (visible, retryable) instead of the process that reports the job.
+      run: |
+        set -euo pipefail
+        sudo sysctl -w vm.swappiness=10
+        for p in $(pgrep -f 'Runner\.' || true); do
+          echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
+        done
+        echo "swappiness=$(cat /proc/sys/vm/swappiness)"
+        ps -eo pid,comm,oom_score_adj | grep -E 'Runner\.' || true
+
     - name: Build Environment
       run: |
         set -euo pipefail
@@ -417,6 +434,10 @@ jobs:
     - name: Building OrangeFox
       if: ${{ inputs.probe != 'kernel-ccache' }}
       env:
+        # Soong's analysis is one Go process whose heap peaks late; halving
+        # GOGC caps that peak (a little slower) so the 15 GB runner does not
+        # swap-thrash into a lost-runner (see the memory-tuning step above).
+        GOGC: '50'
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
