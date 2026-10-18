@@ -32,6 +32,11 @@ on:
         type: choice
         options: [none, kernel-ccache, of-ccache]
         default: none
+      runner:
+        description: 'where to build: GitHub-hosted VM, or the local WSL runner (label of-wsl)'
+        type: choice
+        options: [hosted, self-hosted]
+        default: hosted
       sync_jobs:
         description: 'repo sync clone concurrency (measured 2026-10-17: 8 and 16 land at the fast end of the j4 spread; 16 is no better than 8)'
         type: choice
@@ -49,7 +54,10 @@ jobs:
     # handles 22.04/24.04 only - 26.04 would break the cleanup step; the
     # OrangeFox build-env script explicitly supports 24.04). Newer kernel =
     # better behavior under the build's memory pressure than the 22.04 image.
-    runs-on: ubuntu-24.04
+    # runner=self-hosted builds on the local WSL2 runner (label of-wsl): no
+    # runner-loss risk, an incremental repo sync, and a persistent ccache;
+    # the hosted-only setup steps below are skipped there.
+    runs-on: ${{ inputs.runner == 'self-hosted' && 'of-wsl' || 'ubuntu-24.04' }}
     timeout-minutes: 720
     permissions:
       contents: write
@@ -123,6 +131,7 @@ jobs:
         echo "OTHER_SUFFIX=${OTHER_SUFFIX}" >> "${GITHUB_ENV}"
 
     - name: Restore build caches (ccache)
+      if: inputs.runner != 'self-hosted'
       # One entry carrying both ccache dirs (9.5G cap total vs the repo's
       # 10 GB quota; GitHub's LRU evicts older versions as new ones save).
       # A cold run saves a fresh entry at the end; the next run restores it.
@@ -142,9 +151,11 @@ jobs:
           ccache-${{ env.MANIFEST_BRANCH }}-v1-
 
     - name: Clean-up
+      if: inputs.runner != 'self-hosted'
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
 
     - name: Swap Space (zram first, disk swap on the second disk)
+      if: inputs.runner != 'self-hosted'
       # Memory-pressure mitigations (2026-10-18): the runner lost
       # communication three times because Soong's analysis is the build's
       # memory peak on a 4-core/15 GB runner. Put the disk swap on /mnt (a
@@ -178,6 +189,7 @@ jobs:
         df -h / /mnt | tail -2
 
     - name: Tune memory for the analysis phase
+      if: inputs.runner != 'self-hosted'
       # 2026-10-18: two runs died with "The hosted runner lost communication
       # with the server" 42-48 min into Building OrangeFox - exactly Soong's
       # long silent analysis, the memory peak of the whole build. The swap
@@ -199,6 +211,7 @@ jobs:
         ps -eo pid,comm,oom_score_adj | grep -E 'Runner\.' || true
 
     - name: Build Environment
+      if: inputs.runner != 'self-hosted'
       run: |
         set -euo pipefail
         sudo apt-get update -qq
@@ -428,7 +441,7 @@ jobs:
         # restored/saved by the ccache cache step; the probe only adds stats.
         export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache"
         export CCACHE_COMPRESS=1
-        export CCACHE_MAXSIZE=1000M
+        export CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '20G' || '1000M' }}
         # Fresh repo syncs give the prebuilt clang a new mtime every run,
         # which would fail ccache's default mtime compiler check and zero the
         # warm hit rate. Pin compiler identity to the toolchain version string
@@ -520,7 +533,10 @@ jobs:
         export CCACHE_EXEC="$(command -v ccache)"
         export CCACHE_DIR="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/ccache-of"
         export CCACHE_COMPRESS=1
-        export CCACHE_MAXSIZE=8500M
+        # self-hosted: the cache is a persistent directory on the runner's own
+        # disk, so let it hold the whole build (hosted keeps the repo's 10 GB
+        # actions/cache quota in mind).
+        export CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '120G' || '8500M' }}
         # Same mtime-churn problem as the kernel step (fresh sync each run):
         # pin compiler identity to the tree prebuilt's version string.
         OF_CLANG="$(echo "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"/prebuilts/clang/host/linux-x86/clang-*/bin/clang | awk '{print $1}')"
