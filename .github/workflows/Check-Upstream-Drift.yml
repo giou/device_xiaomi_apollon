@@ -1,20 +1,28 @@
 name: Upstream Drift Watch
 
-# Read-only Tier-1 maintenance: reports when LineageOS-side sources move
-# past what the tree was proven good against. Commits nothing, builds
-# nothing, releases nothing. Red (exit 1) means "refresh + device-test
-# decrypt", green means "no drift".
+# Read-only Tier-1 maintenance: reports when upstream sources move past what
+# the tree was proven good against. Commits nothing, builds nothing, releases
+# nothing. Red (exit 1) means "act on the summary": for kernel/vendor/vold
+# that is refresh + device-test decrypt, for foxcli a fork merge, and for the
+# manifest only when upstream becomes anonymous-fetchable again (plain
+# manifest drift is reported, not red). Green means "no drift".
 #
-# Anchors (bump these on every kernel/blob refresh, after decrypt re-test):
+# Anchors (bump after the corresponding action):
 # - KERNEL_BASE: LOS kernel commit our dtb/recovery_dtbo blobs were extracted
 #   from (proven decrypting). The kernel Image itself is built from our own
 #   fork now, so drift here means the blob source moved.
 # - VENDOR_SINCE: date our recovery/root blobs were proven good.
+# - VOLDS_BASE: OrangeFox system/vold commit our fork was cut from.
+# - MANIFEST_PIN: giou/Manifest fox_16.0 commit we build from (pinned because
+#   upstream's 2026-10-18 fox.xml pins projects anonymous builds cannot
+#   fetch).
+# - FOXCLI_BASE: OrangeFox external/foxcli commit giou/foxcli was forked at.
 # Vendor queries are pinned to lineage-24.0 (what the tree consumes);
 # SPL bumps are NOT drift (2099 policy absorbs them) and are ignored here.
 #
 # Covers the decrypt-critical set: dtb/recovery_dtbo (LOS boot image source),
-# gatekeeper/keymaster/qseecomd + vintf blobs (TheMuppets vendor).
+# gatekeeper/keymaster/qseecomd + vintf blobs (TheMuppets vendor) - plus the
+# two OrangeFox forks we carry (vold, foxcli) and the manifest pin.
 
 on:
   schedule:
@@ -29,7 +37,7 @@ defaults:
 jobs:
   drift:
     name: Check upstream drift
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -38,6 +46,8 @@ jobs:
       KERNEL_BRANCH: lineage-24.0
       VENDOR_SINCE: 2026-10-12
       VOLDS_BASE: 953de9608eb78380b3c4e39e801c2bc0af7dbddc
+      MANIFEST_PIN: 4c65ca28fa67580172ee6bf99892a054c19dcebe
+      FOXCLI_BASE: ce8125d5dba50b3c03e8c674221206bb7ce5c705
     steps:
       - name: Check for drift
         run: |
@@ -103,6 +113,71 @@ jobs:
             echo "- system/vold: no drift (fork base == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+          echo "=== OrangeFox manifest: upstream vs our pin ==="
+          curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2FManifest/repository/compare?from=${MANIFEST_PIN}&to=fox_16.0" -o /tmp/manifest-compare.json
+          MN=$(python3 -c "import json; print(len(json.load(open('/tmp/manifest-compare.json')).get('commits', [])))")
+          echo "upstream manifest commits since our pin: ${MN}"
+          if [[ "${MN}" != "0" ]]; then
+            {
+              echo "#### Manifest drift (info): ${MN} upstream commit(s) since our pin"
+              python3 -c "
+          import json
+          for c in json.load(open('/tmp/manifest-compare.json')).get('commits', [])[:15]:
+              print('- %s %s %s' % (c['short_id'], c['created_at'][:10], c['title'][:90]))
+          "
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Manifest: no drift (pin == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          # The pin exists only because upstream's fox.xml pins projects that
+          # anonymous builds cannot fetch. Red the day that stops being true:
+          # probe every OrangeFox-remote project in upstream's current XMLs.
+          curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2FManifest/repository/tree?ref=fox_16.0&per_page=100" -o /tmp/manifest-tree.json
+          CHECKED=0; BLOCKED=0
+          while read -r mf; do
+            curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2FManifest/repository/files/${mf}/raw?ref=fox_16.0" -o /tmp/mf.xml || continue
+            while read -r proj; do
+              [ -z "${proj}" ] && continue
+              CHECKED=$((CHECKED + 1))
+              code=$(curl -s -o /dev/null -w '%{http_code}' "https://gitlab.com/OrangeFox/${proj}.git/info/refs?service=git-upload-pack" || echo 000)
+              if [ "${code}" != "200" ]; then
+                BLOCKED=$((BLOCKED + 1))
+                echo "  blocked: ${proj} (HTTP ${code})"
+              fi
+            done < <(grep 'remote="OrangeFox"' /tmp/mf.xml | grep -o 'name="[^"]*"' | sed 's/name="//;s/"$//' | sort -u)
+          done < <(python3 -c "import json; [print(f['name']) for f in json.load(open('/tmp/manifest-tree.json')) if f['name'].endswith('.xml')]")
+          echo "manifest projects probed: ${CHECKED}, blocked: ${BLOCKED}"
+          if [ "${CHECKED}" != "0" ] && [ "${BLOCKED}" = "0" ]; then
+            DRIFT=1
+            {
+              echo "#### Upstream manifest is anonymous-fetchable again"
+              echo "     Action: advance giou/Manifest to upstream fox_16.0 and"
+              echo "     drop the CI repoint in OrangeFox-Compile.yml."
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- Manifest fetchability: ${BLOCKED}/${CHECKED} OrangeFox project(s) still blocked (pin needed)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+          echo "=== foxcli fork (giou/foxcli) vs upstream ==="
+          curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2Fexternal%2Ffoxcli/repository/compare?from=${FOXCLI_BASE}&to=master" -o /tmp/foxcli-compare.json
+          FN=$(python3 -c "import json; print(len(json.load(open('/tmp/foxcli-compare.json')).get('commits', [])))")
+          echo "upstream foxcli commits since our fork base: ${FN}"
+          if [[ "${FN}" != "0" ]]; then
+            DRIFT=1
+            {
+              echo "#### foxcli DRIFT: ${FN} upstream commit(s) since the fork base"
+              echo "     (merge into giou/foxcli master; the CI pins the fork, so the"
+              echo "     next build picks it up - no device test needed)"
+              python3 -c "
+          import json
+          for c in json.load(open('/tmp/foxcli-compare.json')).get('commits', [])[:15]:
+              print('- %s %s %s' % (c['short_id'], c['created_at'][:10], c['title'][:90]))
+          "
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "- foxcli: no drift (fork base == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
           echo "=== latest LOS nightly (info only) ==="
           curl -sfL --retry 3 "https://download.lineageos.org/api/v2/devices/apollon/builds" \
             | python3 -c "import json,sys; d=json.load(sys.stdin); print('latest nightly:', (d[0].get('date') if isinstance(d,list) and d else d))" \
@@ -110,8 +185,8 @@ jobs:
 
           if [[ "${DRIFT}" != "0" ]]; then
             echo "" >> "${GITHUB_STEP_SUMMARY}"
-            echo "## Action: refresh dtb/recovery_dtbo + vendor blobs, device-test decrypt, then bump anchors" >> "${GITHUB_STEP_SUMMARY}"
-            echo "::error::Upstream drift detected - see summary. Refresh dtb/recovery_dtbo + vendor blobs, re-test decrypt, then bump KERNEL_BASE/VENDOR_SINCE/VOLDS_BASE."
+            echo "## Action: apply the per-source action in the drift entries above" >> "${GITHUB_STEP_SUMMARY}"
+            echo "::error::Upstream drift detected - see the summary. kernel/vendor: refresh blobs + device-test decrypt, then bump the anchor; vold/foxcli: merge the fork; manifest: advance giou/Manifest + drop the CI repoint."
             exit 1
           fi
           echo "No drift. Tree is current."
