@@ -511,8 +511,11 @@ jobs:
         set -euo pipefail
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
         BIN_DIR="${OUT_DIR}/recovery/root/system/bin"
-        if [[ ! -x "${BIN_DIR}/ttyd" ]]; then
-          echo "mainline ramdisk (no ttyd): NAS binaries are not part of this variant, skipping."
+        # Variant from the build inputs, not a ramdisk-content proxy: the old
+        # ttyd check would silently skip (or falsely fail) if the variants'
+        # contents ever shifted.
+        if [[ "${VARIANT_SUFFIX}" != "-wlan" ]]; then
+          echo "primary variant is not wlan: NAS binaries are not part of this variant, skipping."
           exit 0
         fi
         ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
@@ -655,8 +658,9 @@ jobs:
         set -euo pipefail
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
         BIN_DIR="${OUT_DIR}/recovery/root/system/bin"
-        if [[ ! -x "${BIN_DIR}/ttyd" ]]; then
-          echo "mainline ramdisk (no ttyd): NAS binaries are not part of this variant, skipping."
+        # Same variant-from-inputs rule as the primary assert (see above).
+        if [[ "${OTHER_SUFFIX}" != "-wlan" ]]; then
+          echo "other variant is not wlan: NAS binaries are not part of it, skipping."
           exit 0
         fi
         ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
