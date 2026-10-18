@@ -199,11 +199,18 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        # With zram at priority 100 (fast, RAM-backed) the kernel should
-        # prefer swapping to it over evicting the file cache; the disk swap
-        # (priority 10) is only the overflow, so the old thrash concern is
-        # gone. 100 = swap freely into compressed RAM.
-        sudo sysctl -w vm.swappiness=100
+        # swappiness must match the swap that actually exists. zram at
+        # priority 100 (fast, RAM-backed) makes swapping cheap -> swap
+        # freely (100). Without zram - the module is absent on the runner
+        # image, the step logs the fallback - the only swap is the disk
+        # file, and a high swappiness thrashes it: keep pages resident
+        # instead (10, the pre-2026-10-18 value; run 39163399606 measured
+        # the regression).
+        if swapon --show | grep -q zram; then
+          sudo sysctl -w vm.swappiness=100
+        else
+          sudo sysctl -w vm.swappiness=10
+        fi
         for p in $(pgrep -f 'Runner\.' || true); do
           echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
         done
