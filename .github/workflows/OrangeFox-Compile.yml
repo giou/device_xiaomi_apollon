@@ -45,7 +45,11 @@ defaults:
 jobs:
   build:
     name: Build OFR by ${{ github.actor }}
-    runs-on: ubuntu-22.04
+    # ubuntu-24.04: the newest image every step supports (slimhub_actions
+    # handles 22.04/24.04 only - 26.04 would break the cleanup step; the
+    # OrangeFox build-env script explicitly supports 24.04). Newer kernel =
+    # better behavior under the build's memory pressure than the 22.04 image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 720
     permissions:
       contents: write
