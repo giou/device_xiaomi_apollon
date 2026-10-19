@@ -562,7 +562,7 @@ jobs:
         echo "CCACHE_EXEC=${CCACHE_EXEC}" >> "${GITHUB_ENV}"
         echo "CCACHE_DIR=${CCACHE_DIR}" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPRESS=1" >> "${GITHUB_ENV}"
-        echo "CCACHE_MAXSIZE=8500M" >> "${GITHUB_ENV}"
+        echo "CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '120G' || '8500M' }}" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
         echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
         echo "of ccache: restored entries: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
