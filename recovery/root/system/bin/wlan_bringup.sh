@@ -41,24 +41,27 @@ while [ "$i" -lt 30 ]; do
 done
 echo "WLFW announced after ${i}s (or timeout)"
 export LD_LIBRARY_PATH=/vendor/lib64:/vendor/lib
-# Shield /data/vendor/wifi when /data is mounted (post-decrypt). cnss-daemon
-# binds a unix socket at a fixed path under /data/vendor/wifi/sockets and
-# the recovery policy has no label rule for it: a socket created here is
-# root:root and unlabeled, and it survives the reboot. Android's cnss-daemon
-# then cannot unlink it (avc: denied unlink on an unlabeled sock_file), fails
-# to bind, respawns every 5 s and WiFi stays dead in Android until the file
-# is removed (bitten 2026-10-18 after a post-decrypt WLAN session). The
-# tmpfs hides the real directory so nothing the recovery's WLAN stack writes
-# can reach /data; the pre-decrypt path is already safe (the socket lands on
-# the ramdisk). The rm repairs the stale socket an older build left behind.
+# Shield /data/vendor/wifi/sockets when /data is mounted (post-decrypt). Only
+# the SOCKETS dir - never the whole wifi dir: cnss-daemon binds its unix
+# socket at a fixed path there, and the recovery policy has no label rule for
+# it: a socket created here is root:root and unlabeled, survives the reboot,
+# and Android's cnss-daemon then cannot unlink it (avc: denied unlink on an
+# unlabeled sock_file), fails to bind, respawns every 5 s and WiFi stays dead
+# in Android until the file is removed (bitten 2026-10-18 after a post-decrypt
+# WLAN session). The calibration files (wlfw_cal_01.bin) MUST stay visible:
+# shielding the whole wifi dir hides them, calibration times out (80 s, "force
+# shutdown"), FW-ready never arrives and there is no wlan0 at all (bitten in
+# v17 testing, 2026-10-19: "FW ready after 40s" was the loop limit, not
+# success). The pre-decrypt path is already safe (the socket lands on the
+# ramdisk). The rm repairs the stale socket an older build left behind.
 # shortcut: the tmpfs leaves a submount under /data, which blocks a
 # "unmount /data" until the next reboot; upgrade to a mount namespace
 # (unshare -m) if the recovery ever needs to unmount /data mid-session.
 if mount | grep -q " /data "; then
-  mkdir -p /data/vendor/wifi
+  mkdir -p /data/vendor/wifi/sockets
   rm -f /data/vendor/wifi/sockets/cnss_user_server
   [ -e /data/vendor/wifi/sockets/cnss_user_server ] && echo "WARN: stale cnss socket not removed"
-  mount -t tmpfs -o mode=0770 tmpfs /data/vendor/wifi || echo "WARN: tmpfs shield failed"
+  mount -t tmpfs -o mode=0770 tmpfs /data/vendor/wifi/sockets || echo "WARN: tmpfs shield failed"
 fi
 if ! pidof cnss-daemon >/dev/null 2>&1; then
   nohup /vendor/bin/cnss-daemon >/dev/null 2>&1 &
