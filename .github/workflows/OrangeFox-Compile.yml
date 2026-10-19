@@ -57,6 +57,9 @@ jobs:
     # runner=self-hosted builds on the local WSL2 runner (label of-wsl): no
     # runner-loss risk, an incremental repo sync, and a persistent ccache;
     # the hosted-only setup steps below are skipped there.
+    # Larger hosted runners (e.g. ubuntu-latest-8-cores) require an
+    # organization on Team/Enterprise; this personal repo only has the
+    # standard ubuntu-24.04 image (checked 2026-10-19).
     runs-on: ${{ inputs.runner == 'self-hosted' && 'of-wsl' || 'ubuntu-24.04' }}
     timeout-minutes: 720
     permissions:
@@ -207,11 +210,14 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        # Swappiness stays at the kernel default (60, as in the successful v15
-        # era): the 2026-10-18 experiment of forcing it to 100 stalled two
-        # hosted builds for 4h+ at the analysis start (disk-only swap, no
-        # zram on the runner image), and pinning it to 10 was never validated
-        # as an improvement over default - v15 finished in 2h36m on 60.
+        # Swappiness 10 (2026-10-19): the 2026-10-18 experiment of forcing it
+        # to 100 stalled two hosted builds for 4h+ at the analysis start
+        # (disk-only swap, no zram on the runner image). The default 60 passed
+        # but the self-hosted runner showed heavy anon swap at 60; 10 keeps
+        # hot compiler heap pages resident and is measured by the resource
+        # sampler. zram is unavailable on this image; zswap is reported.
+        sudo sysctl -w vm.swappiness=10
+        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a')"
         # Only the agent protection below is kept: take the Runner.*
         # processes out of the OOM victim pool so a spike kills a build
         # process (visible, retryable) instead of the process that reports
@@ -219,7 +225,7 @@ jobs:
         for p in $(pgrep -f 'Runner\.' || true); do
           echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
         done
-        echo "swappiness=$(cat /proc/sys/vm/swappiness) (default, untouched)"
+        echo "swappiness=$(cat /proc/sys/vm/swappiness)"
         # The runner image's ps has no oom_score_adj format specifier (seen on
         # the 2026-10-19 clean run); read the per-pid file directly instead.
         for p in $(pgrep -f 'Runner\.' || true); do
@@ -537,10 +543,17 @@ jobs:
     - name: Building OrangeFox
       if: ${{ inputs.probe != 'kernel-ccache' }}
       env:
-        # Soong's analysis is one Go process whose heap peaks late; halving
-        # GOGC caps that peak (a little slower) so the 15 GB runner does not
-        # swap-thrash into a lost-runner (see the memory-tuning step above).
+        # Soong's analysis is one Go process whose heap peaks late; GOGC=50
+        # keeps the proportional GC goal at 1.5x live. GOMEMLIMIT is the
+        # absolute soft cap: 11 GiB on the 16 GB hosted runner, leaving room
+        # for the agent and compilers. Provisional until the gctrace live
+        # heap is known (see the resource summary); never set it below live.
+        # Self-hosted is intentionally left unset (its own tuning is pending).
         GOGC: '50'
+        GOMEMLIMIT: ${{ inputs.runner != 'self-hosted' && '11GiB' || '' }}
+        # One-shot diagnostic: emit GC lines (A->B->C MB, goal) to the build
+        # log for the live-heap measurement; remove after tuning settles.
+        GODEBUG: ${{ inputs.runner != 'self-hosted' && 'gctrace=1' || '' }}
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
@@ -554,6 +567,12 @@ jobs:
         # immediately under `set -u` with "TOP: unbound variable".
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs; mka uses the tree's default job count (the CPU count)"
+        # Resource sampler (hosted and self-hosted): CSV in RUNNER_TEMP, lines
+        # also streamed to the job log so a lost runner still leaves data.
+        MON_LOG="${RUNNER_TEMP:-/tmp}/resource-usage.csv"
+        bash "${GITHUB_WORKSPACE}/.github/scripts/monitor-resources.sh" "${MON_LOG}" &
+        MON_PID=$!
+        trap 'kill "${MON_PID}" 2>/dev/null || true' EXIT
         cd "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
         # OrangeFox build ccache, always on: capped at 8.5G so it plus the
         # kernel's 1G cache fit the repo's 10 GB cache quota (old versions are
@@ -608,6 +627,31 @@ jobs:
           du -sh "${CCACHE_DIR:-/nonexistent}" 2>/dev/null || echo "(no ccache dir)"
           echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
         fi
+        kill "${MON_PID}" 2>/dev/null || true
+        wait "${MON_PID}" 2>/dev/null || true
+
+    - name: Resource usage summary
+      if: ${{ always() && inputs.runner != 'self-hosted' }}
+      run: |
+        set +e
+        LOG="${RUNNER_TEMP:-/tmp}/resource-usage.csv"
+        echo "### Hosted runner resource usage" >> "$GITHUB_STEP_SUMMARY"
+        if [ ! -s "$LOG" ]; then
+          echo "No samples captured." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        awk -F, 'NR>1 { if ($2+0>mem) mem=$2+0; if ($3+0>swap) swap=$3+0; if ($4+0>rss) rss=$4+0; if ($5+0>vsw) vsw=$5+0; if ($6+0>psi) psi=$6+0; if ($7+0>pio) pio=$7+0; if (first=="") first=$8+0; last=$8+0 } END { printf "| metric | peak/last |\n|---|---|\n| memory used | %d MB |\n| swap used | %d MB |\n| soong RSS | %d MB |\n| soong VmSwap | %d MB |\n| PSI memory some avg10 | %.2f |\n| PSI io some avg10 | %.2f |\n| swap-out | %.1f GiB |\n", mem, swap, int(rss/1024), int(vsw/1024), psi, pio, (last-first)*4/1024/1024 }' "$LOG" >> "$GITHUB_STEP_SUMMARY"
+        {
+          echo ""
+          echo '```'
+          swapon --show
+          echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo n/a)"
+          df -hT / /mnt
+          lsblk -f
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
+        echo "resource samples (tail):"
+        tail -6 "$LOG"
 
     - name: Assert NAS binaries in the wlan recovery image
       if: ${{ inputs.probe != 'kernel-ccache' }}
