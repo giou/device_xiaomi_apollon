@@ -279,6 +279,21 @@ jobs:
           echo "::error::expected the OrangeFox Manifest URL in orangefox_sync.sh - upstream changed, review manually."
           exit 1
         fi
+        # Self-hosted only, no-op on hosted (fresh workspace has no .repo):
+        # previous runs replaced some repo projects with plain git clones
+        # (Override forked sources, Clone TWRP dependencies). repo expects its
+        # own .git *file* pointing into .repo/projects and fails checkout on a
+        # foreign .git *directory* ("Cannot checkout ...: unsupported .git").
+        # Remove those working trees so repo restores them from .repo/projects;
+        # the later steps re-apply the clones. Data-driven - no hardcoded list.
+        FOX_TREE="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        if [ -d "${FOX_TREE}/.repo" ]; then
+          find "${FOX_TREE}" -name .repo -prune -o -name .git -type d -printf '%h\n' 2>/dev/null \
+            | while read -r d; do
+                echo "foreign clone where repo expects its checkout, restoring: ${d#${FOX_TREE}/}"
+                rm -rf "${d}"
+              done
+        fi
         # Upstream hosts (gitlab.com, android.googlesource.com) flake with
         # transient 503s mid-sync (killed two runs: vendor/recovery, then
         # libbootloader). repo sync resumes partial checkouts, so re-running
