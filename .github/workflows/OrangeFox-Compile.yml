@@ -694,6 +694,12 @@ jobs:
           exit 1
         fi
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
+        # Self-hosted only (persistent out/): a previous build's renamed assets
+        # (OrangeFox-R12.0_<n>-Unofficial-*) are still here and would fail the
+        # strict name check below (run 39212873859 died on a v17 leftover).
+        # Remove them; the current build's files still carry the vendor's
+        # unreleased name. No-op on hosted (fresh out/).
+        find "${OUT_DIR}" -maxdepth 1 -name 'OrangeFox-R12.0_[0-9]*-Unofficial-*' -delete -print || true
         ls -lh "${OUT_DIR}"
         renamed=0
         for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
