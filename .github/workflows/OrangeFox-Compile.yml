@@ -215,9 +215,17 @@ jobs:
         # (disk-only swap, no zram on the runner image). The default 60 passed
         # but the self-hosted runner showed heavy anon swap at 60; 10 keeps
         # hot compiler heap pages resident and is measured by the resource
-        # sampler. zram is unavailable on this image; zswap is reported.
+        # sampler. zram is unavailable on this image; zswap is enabled below.
         sudo sysctl -w vm.swappiness=10
-        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a')"
+        # zswap: compress swapped pages in RAM before the SSD write. The
+        # hosted image has it compiled in but disabled ("N" on v23); enable
+        # at runtime. The analysis is single-threaded and I/O-bound, so the
+        # other cores absorb the compression cost. SSD wear is not the goal -
+        # lower swap latency is.
+        if [ -e /sys/module/zswap/parameters/enabled ]; then
+          echo 1 | sudo tee /sys/module/zswap/parameters/enabled >/dev/null 2>&1 || true
+        fi
+        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a') compressor=$(cat /sys/module/zswap/parameters/compressor 2>/dev/null || echo 'n/a') pool=$(cat /sys/module/zswap/parameters/max_pool_percent 2>/dev/null || echo 'n/a')"
         # Only the agent protection below is kept: take the Runner.*
         # processes out of the OOM victim pool so a spike kills a build
         # process (visible, retryable) instead of the process that reports
@@ -648,7 +656,21 @@ jobs:
           echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo n/a)"
           df -hT / /mnt
           lsblk -f
+          sudo grep -H . /sys/kernel/debug/zswap/* 2>/dev/null | head -8
           echo '```'
+        } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
+        SOONG_LOG="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/soong.log"
+        {
+          echo ""
+          echo "### Soong GC (out/soong.log)"
+          if [ -f "$SOONG_LOG" ]; then
+            grep -aE 'gc [0-9]+ @' "$SOONG_LOG" | sed -nE 's/.* ([0-9]+)->([0-9]+)->([0-9]+) MB, ([0-9]+) MB goal.*/\3 \4/p' | awk 'BEGIN{ml=0;mg=0} {if($1>ml)ml=$1; if($2>mg)mg=$2} END{printf "max live heap: %d MB, max goal: %d MB\n", ml, mg}'
+            echo '```'
+            grep -aE 'gc [0-9]+ @' "$SOONG_LOG" | tail -4
+            echo '```'
+          else
+            echo "soong.log not found"
+          fi
         } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
         echo "resource samples (tail):"
         tail -6 "$LOG"
