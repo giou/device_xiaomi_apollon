@@ -73,6 +73,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, pinned 2026-10-17 (node24: silences the punycode/url.parse deprecations)
+      with:
+        # Never git-clean the workspace. On self-hosted the persistent
+        # OrangeFox/ tree lives inside it, and checkout's default
+        # `git clean -ffdx` deletes the whole 70+ GB sync: run 39182285978
+        # re-synced from zero because of this.
+        clean: false
 
     - name: Validate config
       run: |
