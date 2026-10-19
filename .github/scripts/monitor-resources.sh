@@ -4,7 +4,8 @@
 # Usage: monitor-resources.sh <csv-path>
 set -u
 out="${1:?usage: $0 <csv>}"
-echo 'ts,mem_used_mb,swap_used_mb,soong_rss_kb,soong_swap_kb,psi_mem_avg10,psi_io_avg10,pswpout' > "$out"
+[ -f "$out" ] || echo 'ts,mem_used_mb,swap_used_mb,soong_rss_kb,soong_swap_kb,psi_mem_avg10,psi_io_avg10,pswpout' > "$out"
+env_shown=0
 while :; do
   ts=$(date -u +%FT%TZ)
   mem=$(free -m 2>/dev/null | awk '/^Mem:/{print $3}')
@@ -15,6 +16,10 @@ while :; do
   if [ -n "${pid:-}" ]; then
     rss=$(awk '/VmRSS/{print $2}' "/proc/$pid/status" 2>/dev/null)
     vsw=$(awk '/VmSwap/{print $2}' "/proc/$pid/status" 2>/dev/null)
+    if [ "$env_shown" = 0 ]; then
+      tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -E '^(GOGC|GOMEMLIMIT|GODEBUG)=' | sed 's/^/soong-env: /'
+      env_shown=1
+    fi
   fi
   pm=$(awk '/^some/{print $2}' /proc/pressure/memory 2>/dev/null | cut -d= -f2)
   pi=$(awk '/^some/{print $2}' /proc/pressure/io 2>/dev/null | cut -d= -f2)
