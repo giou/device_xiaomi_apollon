@@ -589,13 +589,8 @@ jobs:
         # No cgroup memory guard (removed 2026-10-19): the successful builds
         # (v15, v16, self-hosted v17) all ran unguarded, and the guard's
         # memory.high throttle was itself a slowdown suspect. The remaining
-<<<<<<< HEAD
         # protections are the default swappiness (as in the successful v15
         # era) and OOM protection
-=======
-        # protections are the default swappiness (as in the successful v15
-        # era) and OOM protection
->>>>>>> 835f443 (ci: drop the cgroup guard and the swappiness override entirely)
         # on the Runner.* processes (the agent survives a spike; a killed
         # build process is a visible, retryable failure).
         mka adbd "${BUILD_TARGET}image"
