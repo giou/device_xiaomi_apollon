@@ -188,7 +188,9 @@ jobs:
           sudo swapon -p 100 /dev/zram0
           echo "zram swap active (6G, priority 100)"
         else
-          echo "::warning::zram unavailable on this image - disk swap only"
+          # Expected on GitHub's runner image (no zram kernel module); the disk
+          # swap above is the designed path - informational, not a warning.
+          echo "zram unavailable on this image - disk swap only"
         fi
         echo "disk swap: ${SWAPFILE}"
         swapon --show
@@ -218,7 +220,11 @@ jobs:
           echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
         done
         echo "swappiness=$(cat /proc/sys/vm/swappiness) (default, untouched)"
-        ps -eo pid,comm,oom_score_adj | grep -E 'Runner\.' || true
+        # The runner image's ps has no oom_score_adj format specifier (seen on
+        # the 2026-10-19 clean run); read the per-pid file directly instead.
+        for p in $(pgrep -f 'Runner\.' || true); do
+          echo "  Runner pid ${p}: oom_score_adj=$(cat "/proc/${p}/oom_score_adj" 2>/dev/null || echo '?')"
+        done
 
     - name: Build Environment
       if: inputs.runner != 'self-hosted'
@@ -834,9 +840,11 @@ jobs:
         {
           echo "### Changes in this build (since release ${PREV_TAG:-unknown})"
           DT_LOG="$(gh api "repos/${REPO}/compare/${PREV_DT}...${COMMIT_ID}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
-          if [[ -n "${PREV_DT}" && -n "${DT_LOG}" ]]; then
+          if [[ -n "${DT_LOG}" ]]; then
             echo "device tree:"
             printf '%s\n' "${DT_LOG}" | head -n 30 || true
+          elif [[ -n "${PREV_DT}" ]]; then
+            echo "device tree: no commits (same revision as the previous release)."
           else
             echo "- dt range unavailable (previous release carries no markers); full history applies."
           fi
