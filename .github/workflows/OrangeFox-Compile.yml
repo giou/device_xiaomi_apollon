@@ -594,6 +594,12 @@ jobs:
         # OOM-kills a build process inside the cgroup - a visible, logged,
         # retryable failure - instead of thrashing the whole VM until the
         # runner agent stalls and GitHub declares the runner lost.
+        # Hosted only: its purpose is protecting the hosted runner agent.
+        # On self-hosted the WSL VM is the boundary (11 GiB RAM + 32 GiB NVMe
+        # swap since 2026-10-19) and its own OOM killer already yields a clean
+        # visible failure; the guard's swap.max=10G would instead cap the
+        # build's swap and shrink the envelope (run 39197702626).
+        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
         if sudo mkdir -p /sys/fs/cgroup/ofbuild \
            && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
            && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
@@ -602,6 +608,7 @@ jobs:
           echo "build cgroup: high=13G max=15G swap.max=10G"
         else
           echo "::warning::cgroup limits unavailable - running unguarded"
+        fi
         fi
         mka adbd "${BUILD_TARGET}image"
 
@@ -757,7 +764,8 @@ jobs:
         source build/envsetup.sh
         set -e
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
-        # Same memory guard as the primary build (see above).
+        # Same memory guard as the primary build (see above); hosted only.
+        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
         if sudo mkdir -p /sys/fs/cgroup/ofbuild \
            && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
            && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
@@ -766,6 +774,7 @@ jobs:
           echo "build cgroup: high=13G max=15G swap.max=10G"
         else
           echo "::warning::cgroup limits unavailable - running unguarded"
+        fi
         fi
         mka adbd "${BUILD_TARGET}image"
 
