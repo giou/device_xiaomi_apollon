@@ -433,8 +433,12 @@ jobs:
         KERNEL_BRANCH="lineage-24.0-apollon"
         KSRC="${RUNNER_TEMP}/kernel-src"
 
-        # kernel build deps the runner image does not ship
-        sudo apt-get install -y -qq flex bison bc libssl-dev >/dev/null
+        # kernel build deps the runner image does not ship (self-hosted has
+        # them from its setup; skipping there also drops a network dependency
+        # from the kernel step)
+        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
+          sudo apt-get install -y -qq flex bison bc libssl-dev >/dev/null
+        fi
 
         rm -rf "${KSRC}"
         git clone --depth=1 --single-branch --branch "${KERNEL_BRANCH}" \
