@@ -205,22 +205,19 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        # swappiness must match the swap that actually exists. zram at
-        # priority 100 (fast, RAM-backed) makes swapping cheap -> swap
-        # freely (100). Without zram - the module is absent on the runner
-        # image, the step logs the fallback - the only swap is the disk
-        # file, and a high swappiness thrashes it: keep pages resident
-        # instead (10, the pre-2026-10-18 value; run 39163399606 measured
-        # the regression).
-        if swapon --show | grep -q zram; then
-          sudo sysctl -w vm.swappiness=100
-        else
-          sudo sysctl -w vm.swappiness=10
-        fi
+        # Swappiness stays at the kernel default (60, as in the successful v15
+        # era): the 2026-10-18 experiment of forcing it to 100 stalled two
+        # hosted builds for 4h+ at the analysis start (disk-only swap, no
+        # zram on the runner image), and pinning it to 10 was never validated
+        # as an improvement over default - v15 finished in 2h36m on 60.
+        # Only the agent protection below is kept: take the Runner.*
+        # processes out of the OOM victim pool so a spike kills a build
+        # process (visible, retryable) instead of the process that reports
+        # the job.
         for p in $(pgrep -f 'Runner\.' || true); do
           echo -1000 | sudo tee "/proc/${p}/oom_score_adj" >/dev/null || true
         done
-        echo "swappiness=$(cat /proc/sys/vm/swappiness)"
+        echo "swappiness=$(cat /proc/sys/vm/swappiness) (default, untouched)"
         ps -eo pid,comm,oom_score_adj | grep -E 'Runner\.' || true
 
     - name: Build Environment
@@ -589,27 +586,12 @@ jobs:
         # 16.0 is the only manifest this builder supports; it needs the
         # release-qualified combo: bp2a for the android-16.0.0 base.
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
-        # Memory guard (2026-10-18): keep the build's peak inside a cgroup so
-        # the kernel throttles it (memory.high) and, past the hard limits,
-        # OOM-kills a build process inside the cgroup - a visible, logged,
-        # retryable failure - instead of thrashing the whole VM until the
-        # runner agent stalls and GitHub declares the runner lost.
-        # Hosted only: its purpose is protecting the hosted runner agent.
-        # On self-hosted the WSL VM is the boundary (11 GiB RAM + 32 GiB NVMe
-        # swap since 2026-10-19) and its own OOM killer already yields a clean
-        # visible failure; the guard's swap.max=10G would instead cap the
-        # build's swap and shrink the envelope (run 39197702626).
-        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
-        if sudo mkdir -p /sys/fs/cgroup/ofbuild \
-           && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
-           && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
-           && echo 10G | sudo tee /sys/fs/cgroup/ofbuild/memory.swap.max >/dev/null \
-           && echo $$ | sudo tee /sys/fs/cgroup/ofbuild/cgroup.procs >/dev/null; then
-          echo "build cgroup: high=13G max=15G swap.max=10G"
-        else
-          echo "::warning::cgroup limits unavailable - running unguarded"
-        fi
-        fi
+        # No cgroup memory guard (removed 2026-10-19): the successful builds
+        # (v15, v16, self-hosted v17) all ran unguarded, and the guard's
+        # memory.high throttle was itself a slowdown suspect. The remaining
+        # protections are swappiness=10 (no disk thrash) and OOM protection
+        # on the Runner.* processes (the agent survives a spike; a killed
+        # build process is a visible, retryable failure).
         mka adbd "${BUILD_TARGET}image"
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
@@ -770,18 +752,7 @@ jobs:
         source build/envsetup.sh
         set -e
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
-        # Same memory guard as the primary build (see above); hosted only.
-        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
-        if sudo mkdir -p /sys/fs/cgroup/ofbuild \
-           && echo 13G | sudo tee /sys/fs/cgroup/ofbuild/memory.high >/dev/null \
-           && echo 15G | sudo tee /sys/fs/cgroup/ofbuild/memory.max >/dev/null \
-           && echo 10G | sudo tee /sys/fs/cgroup/ofbuild/memory.swap.max >/dev/null \
-           && echo $$ | sudo tee /sys/fs/cgroup/ofbuild/cgroup.procs >/dev/null; then
-          echo "build cgroup: high=13G max=15G swap.max=10G"
-        else
-          echo "::warning::cgroup limits unavailable - running unguarded"
-        fi
-        fi
+        # No cgroup memory guard (removed 2026-10-19, see the primary build).
         mka adbd "${BUILD_TARGET}image"
 
         if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
