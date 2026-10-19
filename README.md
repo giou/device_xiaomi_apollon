@@ -18,6 +18,10 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 - More languages (Spanish, Hungarian, Simplified/Traditional Chinese)
 - Aligned theme text and icons
 - Vibrator driver built from source
+- Recovery WLAN + wireless ADB (hands-off autostart, pre-decrypt auto-join; see the wireless flavor below)
+- Network Storage (NAS): SFTP mounts + encrypted backups to a remote share
+- OTA updater entry hidden (it only serves official builds)
+- Maintainer avatar in the About page
 - No MIUI code or updates
 - Pinned security patch and OS version
 - Recovery build fixes (compiler, repacker, reflash menu)
@@ -89,7 +93,25 @@ OrangeFox. The recovery-side changes live in the
 **CI (this repo)**
 - Dual-variant workflow (mainline + wlan, `-wlan` asset tags), persistent
   ccache, auto-generated release notes, plus the NAS dependency/assert and
-  adbd patch steps above.
+  adbd patch steps above. An optional self-hosted WSL runner (`runner`
+  input, on-demand) shortens the wall-clock for local builds.
+
+**Recent hardening (v17–v20, 2026-10-18/19)**
+- The WiFi sockets shield is narrowed to `/data/vendor/wifi/sockets` only —
+  the earlier whole-directory tmpfs hid `wlfw_cal_01.bin` and broke
+  calibration (`ddfc9f7`).
+- The connect paths read the interface IP from the kernel (`SIOCGIFADDR`;
+  the dhcp client never reports the lease into supplicant STATUS), `fox wlan
+  info` prints ssid + IP, and the IP is published as `sys.fox.wlan.ip`.
+- The connection test uses native TCP + DNS (there is no busybox/ping in the
+  ramdisk, and ICMP datagrams are blocked) and `/etc/resolv.conf` is written
+  from the DHCP-provided servers.
+- NAS: the mount flow self-mounts `/persist` (the key must be readable), the
+  NAS page refresh runs off the worker thread (no more "threaded action"
+  rejections during a backup), sftp hides the SMB-only fields, and the SFTP
+  key file is editable in the UI.
+- Restore digest checks are on by default (opt-out with
+  `"digest_check":false`).
 
 ## Credits
 
