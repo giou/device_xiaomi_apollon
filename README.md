@@ -24,7 +24,6 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 - Maintainer avatar in the About page
 - No MIUI code or updates
 - Pinned security patch and OS version
-- Recovery build fixes (compiler, repacker, reflash menu)
 
 | Spec | |
 | :--- | :--- |
@@ -45,73 +44,34 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 
 ## Wireless flavor (`fox_16.0-wlan`)
 
-Additions and fixes on this branch, on top of the mainline tree and upstream
-OrangeFox. The recovery-side changes live in the
+Adds recovery WLAN, network ADB and Network Storage on top of the mainline
+tree and upstream OrangeFox. The recovery-side code lives in the
 [`giou/Recovery`](https://github.com/giou/Recovery) fork, branch
 `fox_16.0-apollon-wlan`; the CI is the workflow in this repo.
 
 **WLAN**
-- Bring-up as a tested ramdisk script: a `wlan_bringup` init service with a
-  seclabel trigger, executed through `/system/bin/sh`, with a
-  firmware-ready wait and the driver-on write (`9d4774c`, `6d6f2e7`,
-  `ff8f368`, `1db0daf`).
-- Async WLAN engine with saved-network connect, and a 120 s allowance for
-  the cold bring-up before `enable` reports failure (`61400763`).
+- Ramdisk bring-up: a `wlan_bringup` init service (seclabel trigger) runs
+  through `/system/bin/sh`, waits for firmware and switches the driver on.
+- Saved-network connect with an async engine and a cold-boot allowance.
 - Hands-off autostart: `of_wlan_auto_enable`, `of_wlan_auto_connect`,
-  `of_adbd_auto` and `of_wlan_last_ssid` are persisted (settings file + the
-  `/persist` mirror) and re-applied after FBE decrypt, so a cold boot joins
-  the saved network and starts network ADB with no prep
-  (`1bdd1c64`, `26d53dbc`, `2dfc5f1b`, `004e5409`).
+  `of_adbd_auto` and `of_wlan_last_ssid` persist across FBE decrypt, so a
+  cold boot joins the saved network and starts network ADB.
 
 **Network ADB**
-- The paired-ADB TLS server is pinned to a fixed port: a CI patch teaches
-  the AOSP daemon to honor `service.adb.tls_server.port`, the fork sets it,
-  and WiFi settings expose a "Network ADB automatically" toggle
-  (`91e7fcb`, `10d54db`, `abd6de74`).
+- Paired-ADB TLS server on a fixed port; the "Network ADB automatically"
+  toggle lives in WiFi settings.
 
 **Network Storage (NAS)**
-- OrangeFox Network Storage enabled end-to-end: `rclone` + `fusermount3`
-  are cloned via `twrp.dependencies`, and the build fails if a wlan ramdisk
-  lacks them (`98b4da9`, `9848b67`).
-- Passwordless SFTP via `tw_nas_key` (`18fad9d3`); headless
-  `fox nas mount|unmount|status` (`0d55348c`); dead-mount recovery and an
-  upload-wait driven by rclone's live queues (`db2e0d94`, `86d74718`).
-- Verified end-to-end on apollon: encrypted (and optionally compressed)
-  `/data` + Internal Storage backups over SFTP to a Windows share, digests
-  included, with the write-back cache mode for speed.
-
-**Recovery-engine fixes that came out of this work**
-- Fox RPC: no engine wedge on the action-slot race (`ab9398ba`); encrypted
-  backup/restore accept password arguments (`1dc8f297`).
-- Digest driver digests every split chunk of encrypted backups
-  (`89fcc475`); empty-tar chunks are accepted on restore (`18576f84`).
-- Backup names stay portable and survive `Update_System_Details`
-  (`2c681d84`, `87d38bed`, `eec02792`); gatekeeper decrypt retry and
-  `/cache` OAES backups (`eec02792`, `62b8f3f`); the CA store ships for
-  in-recovery TLS clients (`d2e4c734`).
+- `rclone` + `fusermount3` in the ramdisk; the build fails if a wlan
+  ramdisk lacks them.
+- Passwordless SFTP via `tw_nas_key`; `fox nas mount|unmount|status`.
+- Encrypted (optionally compressed) `/data` + Internal Storage backups to
+  the remote share, digests included; write-back cache mode for speed.
 
 **CI (this repo)**
 - Dual-variant workflow (mainline + wlan, `-wlan` asset tags), persistent
-  ccache, auto-generated release notes, plus the NAS dependency/assert and
-  adbd patch steps above. An optional self-hosted WSL runner (`runner`
-  input, on-demand) shortens the wall-clock for local builds.
-
-**Recent hardening (v17–v20, 2026-10-18/19)**
-- The WiFi sockets shield is narrowed to `/data/vendor/wifi/sockets` only —
-  the earlier whole-directory tmpfs hid `wlfw_cal_01.bin` and broke
-  calibration (`ddfc9f7`).
-- The connect paths read the interface IP from the kernel (`SIOCGIFADDR`;
-  the dhcp client never reports the lease into supplicant STATUS), `fox wlan
-  info` prints ssid + IP, and the IP is published as `sys.fox.wlan.ip`.
-- The connection test uses native TCP + DNS (there is no busybox/ping in the
-  ramdisk, and ICMP datagrams are blocked) and `/etc/resolv.conf` is written
-  from the DHCP-provided servers.
-- NAS: the mount flow self-mounts `/persist` (the key must be readable), the
-  NAS page refresh runs off the worker thread (no more "threaded action"
-  rejections during a backup), sftp hides the SMB-only fields, and the SFTP
-  key file is editable in the UI.
-- Restore digest checks are on by default (opt-out with
-  `"digest_check":false`).
+  ccache, auto-generated release notes, NAS dependency/assert and the adbd
+  port patch. Optional self-hosted WSL runner (`runner` input, on-demand).
 
 ## Credits
 
