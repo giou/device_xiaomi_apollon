@@ -20,9 +20,6 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 - Vibrator driver built from source
 - Recovery WLAN + wireless ADB (hands-off autostart, pre-decrypt auto-join; see the wireless flavor below)
 - Network Storage (NAS): SFTP mounts + encrypted backups to a remote share
-- OTA updater entry hidden (it only serves official builds)
-- Maintainer avatar in the About page
-- No MIUI code or updates
 - Pinned security patch and OS version
 
 | Spec | |
