@@ -854,32 +854,45 @@ jobs:
 
         # Previous release anchors: each published body embeds its source SHAs.
         PREV_TAG="$(gh release list -R "${REPO}" --limit 10 --json tagName,createdAt --jq 'sort_by(.createdAt) | last(.[]).tagName' 2>/dev/null || true)"
-        PREV_BODY="$(gh release view "${PREV_TAG}" -R "${REPO}" --json body --jq '.body' 2>/dev/null || true)"
+        PREV_BODY=""
+        if [[ -n "${PREV_TAG}" ]]; then
+          PREV_BODY="$(gh release view "${PREV_TAG}" -R "${REPO}" --json body --jq '.body' 2>/dev/null || true)"
+        fi
         MARKERS="$(printf '%s' "${PREV_BODY}" | grep -oE '<!-- dt-sha:[0-9a-f]{40} fork-sha:[0-9a-f]{40} -->' || true)"
         PREV_DT="$(printf '%s' "${MARKERS}" | grep -oE 'dt-sha:[0-9a-f]{40}' | cut -d: -f2 || true)"
         PREV_FORK="$(printf '%s' "${MARKERS}" | grep -oE 'fork-sha:[0-9a-f]{40}' | cut -d: -f2 || true)"
 
         AUTO_TMP="$(mktemp)"
         {
-          echo "### Changes in this build (since release ${PREV_TAG:-unknown})"
-          DT_LOG="$(gh api "repos/${REPO}/compare/${PREV_DT}...${COMMIT_ID}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
-          if [[ -n "${DT_LOG}" ]]; then
-            echo "device tree:"
-            printf '%s\n' "${DT_LOG}" | head -n 30 || true
-          elif [[ -n "${PREV_DT}" ]]; then
-            echo "device tree: no commits (same revision as the previous release)."
-          else
-            echo "- dt range unavailable (previous release carries no markers); full history applies."
-          fi
-          FORK_LOG=""
-          if [[ -n "${PREV_FORK:-}" && -n "${FORK_HEAD:-}" ]]; then
-            FORK_LOG="$(gh api "repos/giou/Recovery/compare/${PREV_FORK}...${FORK_HEAD}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
-          fi
-          if [[ -n "${FORK_LOG}" ]]; then
-            echo "recovery fork:"
-            printf '%s\n' "${FORK_LOG}" | head -n 30 || true
-          else
-            echo "- fork range unavailable (previous release carries no markers); see fork history."
+          # Only diff when there is a previous release AND a dt anchor. With no
+          # previous release (fresh version line), comparing "" produced a 404
+          # that leaked into the body; emit just the marker instead.
+          if [[ -n "${PREV_TAG}" && -n "${PREV_DT}" ]]; then
+            echo "### Changes in this build (since release ${PREV_TAG})"
+            DT_LOG="$(gh api "repos/${REPO}/compare/${PREV_DT}...${COMMIT_ID}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
+            [[ "${DT_LOG}" == -* ]] || DT_LOG=""
+            if [[ -n "${DT_LOG}" ]]; then
+              echo "device tree:"
+              printf '%s\n' "${DT_LOG}" | head -n 30
+            else
+              echo "device tree: no commits (same revision as the previous release)."
+            fi
+            FORK_LOG=""
+            if [[ -n "${PREV_FORK}" && -n "${FORK_HEAD}" ]]; then
+              FORK_LOG="$(gh api "repos/giou/Recovery/compare/${PREV_FORK}...${FORK_HEAD}" --jq '.commits[] | "- \(.commit.message | split("\n")[0]) (\(.sha[0:7]))"' 2>/dev/null || true)"
+              [[ "${FORK_LOG}" == -* ]] || FORK_LOG=""
+            fi
+            if [[ -n "${FORK_LOG}" ]]; then
+              echo "recovery fork:"
+              printf '%s\n' "${FORK_LOG}" | head -n 30
+            elif [[ -n "${PREV_FORK}" && -n "${FORK_HEAD}" ]]; then
+              echo "recovery fork: no commits (same revision as the previous release)."
+            else
+              echo "recovery fork: range unavailable (previous release carries no fork marker)."
+            fi
+          elif [[ -n "${PREV_TAG}" ]]; then
+            echo "### Changes in this build (since release ${PREV_TAG})"
+            echo "Previous release carries no source markers; see the repository history."
           fi
           echo "<!-- dt-sha:${COMMIT_ID} fork-sha:${FORK_HEAD:-unknown} -->"
         } > "${AUTO_TMP}"
@@ -898,12 +911,17 @@ jobs:
           echo "body<<RELEASE_NOTES_EOF"
           python3 - "${COMPOSED}" "${AUTO_TMP}" <<'EOF'
         import sys
+        import re
         tpl = open(sys.argv[1]).read()
         auto = open(sys.argv[2]).read()
         text = tpl.replace("<!--AUTO-CHANGES-->", auto)
         # An empty Known-issues section is noise: drop the whole block, but
         # only when it is exactly the "(none)" marker (real entries stay).
         text = text.replace("### Known issues\n(none)\n\n", "")
+        # Template-only HTML comments must not reach the published body; keep
+        # the source marker the next build diffs against.
+        text = re.sub(r'<!--(?!\s*dt-sha:).*?-->', '', text, flags=re.S)
+        text = re.sub(r'\n{3,}', '\n\n', text)
         sys.stdout.write(text)
         EOF
           echo "RELEASE_NOTES_EOF"
