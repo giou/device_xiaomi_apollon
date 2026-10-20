@@ -179,9 +179,15 @@ jobs:
         if [ "$(stat -c %d /mnt)" != "$(stat -c %d /)" ]; then
           SWAPFILE=/mnt/swapfile
         fi
+        # 32G: the v24 peak was 23.96G of 24G (swap effectively full) with
+        # 111G free at creation and 34G free at job end. 32G adds headroom;
+        # fall back to 24G if the scratch disk is unexpectedly small.
+        SWAP_SIZE=32
+        AVAIL=$(df -BG --output=avail "$(dirname "${SWAPFILE}")" | tail -1 | tr -dc '0-9')
+        if [ "${AVAIL:-0}" -lt 40 ]; then SWAP_SIZE=24; fi
         sudo swapoff -a || true
         sudo rm -f /swapfile /mnt/swapfile
-        sudo fallocate -l 24G "${SWAPFILE}" || sudo dd if=/dev/zero of="${SWAPFILE}" bs=1M count=24576 status=none
+        sudo fallocate -l "${SWAP_SIZE}G" "${SWAPFILE}" || sudo dd if=/dev/zero of="${SWAPFILE}" bs=1M count=$((SWAP_SIZE * 1024)) status=none
         sudo chmod 600 "${SWAPFILE}"
         sudo mkswap -q "${SWAPFILE}" >/dev/null
         sudo swapon -p 10 "${SWAPFILE}"
@@ -195,7 +201,7 @@ jobs:
           # swap above is the designed path - informational, not a warning.
           echo "zram unavailable on this image - disk swap only"
         fi
-        echo "disk swap: ${SWAPFILE}"
+        echo "disk swap: ${SWAPFILE} (${SWAP_SIZE}G, ${AVAIL}G free at creation)"
         swapon --show
         df -h / /mnt | tail -2
 
