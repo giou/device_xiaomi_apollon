@@ -534,16 +534,6 @@ jobs:
     - name: Building OrangeFox
       if: ${{ inputs.probe != 'kernel-ccache' }}
       env:
-        # Soong's analysis is one Go process whose heap peaks late; GOGC=50
-        # keeps the proportional GC goal at 1.5x live. GOMEMLIMIT is the
-        # absolute soft cap: 11 GiB on the 16 GB hosted runner, leaving room
-        # for the agent and compilers. Provisional until the gctrace live
-        # heap is known (see the resource summary); never set it below live.
-        GOGC: '50'
-        GOMEMLIMIT: '11GiB'
-        # One-shot diagnostic: emit GC lines (A->B->C MB, goal) to the build
-        # log for the live-heap measurement; remove after tuning settles.
-        GODEBUG: 'gctrace=1'
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
@@ -638,19 +628,6 @@ jobs:
           lsblk -f
           sudo grep -H . /sys/kernel/debug/zswap/* 2>/dev/null | head -8
           echo '```'
-        } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
-        SOONG_LOG="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/soong.log"
-        {
-          echo ""
-          echo "### Soong GC (out/soong.log)"
-          if [ -f "$SOONG_LOG" ]; then
-            grep -aE 'gc [0-9]+ @' "$SOONG_LOG" | sed -nE 's/.* ([0-9]+)->([0-9]+)->([0-9]+) MB, ([0-9]+) MB goal.*/\3 \4/p' | awk 'BEGIN{ml=0;mg=0} {if($1>ml)ml=$1; if($2>mg)mg=$2} END{printf "max live heap: %d MB, max goal: %d MB\n", ml, mg}'
-            echo '```'
-            grep -aE 'gc [0-9]+ @' "$SOONG_LOG" | tail -4
-            echo '```'
-          else
-            echo "soong.log not found"
-          fi
         } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
         echo "resource samples (tail):"
         tail -6 "$LOG"
