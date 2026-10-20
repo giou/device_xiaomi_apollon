@@ -32,11 +32,6 @@ on:
         type: choice
         options: [none, kernel-ccache, of-ccache]
         default: none
-      runner:
-        description: 'where to build: GitHub-hosted VM, or the local WSL runner (label of-wsl)'
-        type: choice
-        options: [hosted, self-hosted]
-        default: hosted
       sync_jobs:
         description: 'repo sync clone concurrency (measured 2026-10-17: 8 and 16 land at the fast end of the j4 spread; 16 is no better than 8)'
         type: choice
@@ -54,13 +49,10 @@ jobs:
     # handles 22.04/24.04 only - 26.04 would break the cleanup step; the
     # OrangeFox build-env script explicitly supports 24.04). Newer kernel =
     # better behavior under the build's memory pressure than the 22.04 image.
-    # runner=self-hosted builds on the local WSL2 runner (label of-wsl): no
-    # runner-loss risk, an incremental repo sync, and a persistent ccache;
-    # the hosted-only setup steps below are skipped there.
     # Larger hosted runners (e.g. ubuntu-latest-8-cores) require an
     # organization on Team/Enterprise; this personal repo only has the
     # standard ubuntu-24.04 image (checked 2026-10-19).
-    runs-on: ${{ inputs.runner == 'self-hosted' && 'of-wsl' || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 720
     permissions:
       contents: write
@@ -76,12 +68,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, pinned 2026-10-17 (node24: silences the punycode/url.parse deprecations)
-      with:
-        # Never git-clean the workspace. On self-hosted the persistent
-        # OrangeFox/ tree lives inside it, and checkout's default
-        # `git clean -ffdx` deletes the whole 70+ GB sync: run 39182285978
-        # re-synced from zero because of this.
-        clean: false
 
     - name: Validate config
       run: |
@@ -140,7 +126,6 @@ jobs:
         echo "OTHER_SUFFIX=${OTHER_SUFFIX}" >> "${GITHUB_ENV}"
 
     - name: Restore build caches (ccache)
-      if: inputs.runner != 'self-hosted'
       # One entry carrying both ccache dirs (9.5G cap total vs the repo's
       # 10 GB quota; GitHub's LRU evicts older versions as new ones save).
       # A cold run saves a fresh entry at the end; the next run restores it.
@@ -160,11 +145,9 @@ jobs:
           ccache-${{ env.MANIFEST_BRANCH }}-v1-
 
     - name: Clean-up
-      if: inputs.runner != 'self-hosted'
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
 
     - name: Swap Space (zram first, disk swap on the second disk)
-      if: inputs.runner != 'self-hosted'
       # Memory-pressure mitigations (2026-10-18): the runner lost
       # communication three times because Soong's analysis is the build's
       # memory peak on a 4-core/15 GB runner. Put the disk swap on /mnt (a
@@ -172,7 +155,7 @@ jobs:
       # with the build, and give it a zram swap at higher priority so the
       # common pressure is absorbed in compressed RAM without disk I/O at
       # all. Both are mitigations, not a root-cause fix - the root fix is a
-      # bigger machine (self-hosted runner).
+      # bigger machine.
       run: |
         set -euo pipefail
         SWAPFILE=/swapfile
@@ -206,7 +189,6 @@ jobs:
         df -h / /mnt | tail -2
 
     - name: Tune memory for the analysis phase
-      if: inputs.runner != 'self-hosted'
       # 2026-10-18: two runs died with "The hosted runner lost communication
       # with the server" 42-48 min into Building OrangeFox - exactly Soong's
       # long silent analysis, the memory peak of the whole build. The swap
@@ -219,7 +201,7 @@ jobs:
         # Swappiness 10 (2026-10-19): the 2026-10-18 experiment of forcing it
         # to 100 stalled two hosted builds for 4h+ at the analysis start
         # (disk-only swap, no zram on the runner image). The default 60 passed
-        # but the self-hosted runner showed heavy anon swap at 60; 10 keeps
+        # and the analysis still swaps heavily; 10 keeps
         # hot compiler heap pages resident and is measured by the resource
         # sampler. zram is unavailable on this image; zswap is enabled below.
         sudo sysctl -w vm.swappiness=10
@@ -247,7 +229,6 @@ jobs:
         done
 
     - name: Build Environment
-      if: inputs.runner != 'self-hosted'
       run: |
         set -euo pipefail
         sudo apt-get update -qq
@@ -471,12 +452,8 @@ jobs:
         KERNEL_BRANCH="lineage-24.0-apollon"
         KSRC="${RUNNER_TEMP}/kernel-src"
 
-        # kernel build deps the runner image does not ship (self-hosted has
-        # them from its setup; skipping there also drops a network dependency
-        # from the kernel step)
-        if [[ "${{ inputs.runner }}" != "self-hosted" ]]; then
-          sudo apt-get install -y -qq flex bison bc libssl-dev >/dev/null
-        fi
+        # kernel build deps the runner image does not ship
+        sudo apt-get install -y -qq flex bison bc libssl-dev >/dev/null
 
         rm -rf "${KSRC}"
         git clone --depth=1 --single-branch --branch "${KERNEL_BRANCH}" \
@@ -496,7 +473,7 @@ jobs:
         # restored/saved by the ccache cache step; the probe only adds stats.
         export CCACHE_DIR="${GITHUB_WORKSPACE}/ccache"
         export CCACHE_COMPRESS=1
-        export CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '20G' || '1000M' }}
+        export CCACHE_MAXSIZE=1000M
         # Fresh repo syncs give the prebuilt clang a new mtime every run,
         # which would fail ccache's default mtime compiler check and zero the
         # warm hit rate. Pin compiler identity to the toolchain version string
@@ -562,12 +539,11 @@ jobs:
         # absolute soft cap: 11 GiB on the 16 GB hosted runner, leaving room
         # for the agent and compilers. Provisional until the gctrace live
         # heap is known (see the resource summary); never set it below live.
-        # Self-hosted is intentionally left unset (its own tuning is pending).
         GOGC: '50'
-        GOMEMLIMIT: ${{ inputs.runner != 'self-hosted' && '11GiB' || '' }}
+        GOMEMLIMIT: '11GiB'
         # One-shot diagnostic: emit GC lines (A->B->C MB, goal) to the build
         # log for the live-heap measurement; remove after tuning settles.
-        GODEBUG: ${{ inputs.runner != 'self-hosted' && 'gctrace=1' || '' }}
+        GODEBUG: 'gctrace=1'
         # Absolute path to the Magisk 31 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
         FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.0.zip
@@ -581,7 +557,7 @@ jobs:
         # immediately under `set -u` with "TOP: unbound variable".
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs; mka uses the tree's default job count (the CPU count)"
-        # Resource sampler (hosted and self-hosted): CSV in RUNNER_TEMP, lines
+        # Resource sampler (hosted): CSV in RUNNER_TEMP, lines
         # also streamed to the job log so a lost runner still leaves data.
         MON_LOG="${RUNNER_TEMP:-/tmp}/resource-usage.csv"
         bash "${GITHUB_WORKSPACE}/.github/scripts/monitor-resources.sh" "${MON_LOG}" &
@@ -601,10 +577,8 @@ jobs:
         export CCACHE_EXEC="$(command -v ccache)"
         export CCACHE_DIR="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/ccache-of"
         export CCACHE_COMPRESS=1
-        # self-hosted: the cache is a persistent directory on the runner's own
-        # disk, so let it hold the whole build (hosted keeps the repo's 10 GB
-        # actions/cache quota in mind).
-        export CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '120G' || '8500M' }}
+        # The hosted ccache keeps the repo's 10 GB actions/cache quota in mind.
+        export CCACHE_MAXSIZE=8500M
         # Same mtime-churn problem as the kernel step (fresh sync each run):
         # pin compiler identity to the tree prebuilt's version string.
         OF_CLANG="$(echo "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"/prebuilts/clang/host/linux-x86/clang-*/bin/clang | awk '{print $1}')"
@@ -613,7 +587,7 @@ jobs:
         echo "CCACHE_EXEC=${CCACHE_EXEC}" >> "${GITHUB_ENV}"
         echo "CCACHE_DIR=${CCACHE_DIR}" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPRESS=1" >> "${GITHUB_ENV}"
-        echo "CCACHE_MAXSIZE=${{ inputs.runner == 'self-hosted' && '120G' || '8500M' }}" >> "${GITHUB_ENV}"
+        echo "CCACHE_MAXSIZE=8500M" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
         echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
         echo "of ccache: restored entries: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
@@ -626,7 +600,7 @@ jobs:
         # release-qualified combo: bp2a for the android-16.0.0 base.
         lunch "twrp_${DEVICE_NAME}-bp2a-eng"
         # No cgroup memory guard (removed 2026-10-19): the successful builds
-        # (v15, v16, self-hosted v17) all ran unguarded, and the guard's
+        # (v15, v16, v17) all ran unguarded, and the guard's
         # memory.high throttle was itself a slowdown suspect. The remaining
         # protections are the default swappiness (as in the successful v15
         # era) and OOM protection
@@ -645,7 +619,7 @@ jobs:
         wait "${MON_PID}" 2>/dev/null || true
 
     - name: Resource usage summary
-      if: ${{ always() && inputs.runner != 'self-hosted' }}
+      if: ${{ always() }}
       run: |
         set +e
         LOG="${RUNNER_TEMP:-/tmp}/resource-usage.csv"

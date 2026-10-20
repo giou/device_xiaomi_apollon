@@ -71,7 +71,7 @@ tree and upstream OrangeFox. The recovery-side code lives in the
 **CI (this repo)**
 - Dual-variant workflow (mainline + wlan, `-wlan` asset tags), persistent
   ccache, auto-generated release notes, NAS dependency/assert and the adbd
-  port patch. Optional self-hosted WSL runner (`runner` input, on-demand).
+  port patch.
 
 ## Credits
 
