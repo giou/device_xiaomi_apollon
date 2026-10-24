@@ -36,7 +36,7 @@ OF_MAINTAINER := giou
 # partition mounted at /vendor/firmware_mnt in recovery (see recovery.fstab).
 OF_ENABLE_WLAN := 1
 FOX_REMOTE_DASHBOARD := 1
-FOX_MAINTAINER_PATCH_VERSION := 1
+FOX_MAINTAINER_PATCH_VERSION := 2
 
 # Logical-partition toolkit — official/miatoll parity.
 #   OF_ENABLE_LPTOOLS=1            -> external/lptools (lptools binary)
