@@ -279,15 +279,15 @@ jobs:
         # expected upstream line disappeared.
         SYNC_JOBS_IN="${{ inputs.sync_jobs }}"
         [ -z "${SYNC_JOBS_IN}" ] && SYNC_JOBS_IN=8
-        if [[ "${SYNC_JOBS_IN}" != "4" ]]; then
-          if grep -q "repo sync -c -j4 --no-clone-bundle --no-tags" orangefox_sync.sh; then
-            sed -i "s/repo sync -c -j4 --no-clone-bundle --no-tags/repo sync -c -j${SYNC_JOBS_IN} --no-clone-bundle --no-tags/" orangefox_sync.sh
-            echo "patched repo sync jobs to ${SYNC_JOBS_IN}:"
-            grep -n "repo sync -c -j" orangefox_sync.sh
-          else
-            echo "::error::expected 'repo sync -c -j4' line not found in orangefox_sync.sh - upstream changed, review manually."
-            exit 1
-          fi
+        # Plan 2: test shallow history. Revert if any manifest project needs
+        # tags/history for build metadata or a pinned checkout.
+        if grep -q "repo sync -c -j4 --no-clone-bundle --no-tags" orangefox_sync.sh; then
+          sed -i "s/repo sync -c -j4 --no-clone-bundle --no-tags/repo sync -c -j${SYNC_JOBS_IN} --depth=1 --no-clone-bundle --no-tags/" orangefox_sync.sh
+          echo "patched repo sync jobs to ${SYNC_JOBS_IN} and depth=1:"
+          grep -n "repo sync -c -j" orangefox_sync.sh
+        else
+          echo "::error::expected 'repo sync -c -j4' line not found in orangefox_sync.sh - upstream changed, review manually."
+          exit 1
         fi
         # Use the official OrangeFox manifest. The NAS dependencies
         # (external/rclone + external/libfuse3) and the ttyd/wpa_supplicant_8
