@@ -628,7 +628,8 @@ jobs:
         export CCACHE_MAXSIZE=3000M
         # Same mtime-churn problem as the kernel step (fresh sync each run):
         # pin compiler identity to the tree prebuilt's version string.
-        OF_CLANG="$(echo "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"/prebuilts/clang/host/linux-x86/clang-*/bin/clang | awk '{print $1}')"
+        OF_CLANG="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/prebuilts/clang/host/linux-x86/clang-r547379/bin/clang"
+        [ -x "${OF_CLANG}" ] || { echo "::error::clang-r547379 not found for the OF ccache key."; exit 1; }
         export CCACHE_COMPILERCHECK="string:$("${OF_CLANG}" --version | head -n 1)"
         echo "USE_CCACHE=1" >> "${GITHUB_ENV}"
         echo "CCACHE_EXEC=${CCACHE_EXEC}" >> "${GITHUB_ENV}"
