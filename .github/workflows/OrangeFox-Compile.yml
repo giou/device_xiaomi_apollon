@@ -175,9 +175,11 @@ jobs:
     - name: Clean-up
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
       with:
-        # Build Environment needs both; removing and reinstalling them was a
-        # slow network path with no disk saving (clang/gh are used by the build).
-        retain: "vcs compiler_llvm_clang"
+        # The purge removed LLVM, OpenJDK/Maven, GCC, and gh, then Build
+        # Environment downloaded them again. R19 WLAN spent 30m on that
+        # (llvm/openjdk) while the sibling took 11m. Keep what the build
+        # uses; purge the rest.
+        retain: "vcs java_tools compiler_all"
 
     - name: Swap Space (zram first, disk swap on the second disk)
       # Memory-pressure mitigations (2026-10-18): the runner lost
