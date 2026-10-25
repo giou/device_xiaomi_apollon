@@ -11,7 +11,7 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 - Kernel built from source
 - Boot blobs from LineageOS
 - Logical partition tools
-- Magisk 31, no AromaFM
+- Magisk 31.1, no AromaFM
 - Encrypted backups
 - Correct MTP dates in Windows
 - Automatic USB-OTG mount
