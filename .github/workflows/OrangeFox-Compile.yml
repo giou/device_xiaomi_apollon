@@ -254,7 +254,7 @@ jobs:
       run: |
         set -euo pipefail
         sudo apt-get update -qq
-        sudo apt-get install -y -qq ccache libtinfo5
+        sudo apt-get install -y -qq ccache
         git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
         cd scripts
         sudo bash setup/android_build_env.sh
