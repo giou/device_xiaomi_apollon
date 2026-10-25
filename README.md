@@ -32,7 +32,7 @@ This tree targets official LineageOS 24 (Android 17). It decrypts data with FBEv
 | Display | 6.67" 1080x2400 IPS, 144 Hz |
 | Battery | 5000 mAh |
 | OTA assert | `apollon,apollo,apollopro` |
-| Kernel | 4.19.325, built from source (`giou/android_kernel_xiaomi_sm8250@lineage-24.0-apollon`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI). `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
+| Kernel | 4.19.325, built from source (`LineageOS/android_kernel_xiaomi_sm8250@lineage-24.0`, LOS config set, `clang-r547379` + `LLVM=1`, LTO+CFI). `dtb`/`recovery_dtbo` stay LOS blobs from the same commit |
 
 ## Branches
 
