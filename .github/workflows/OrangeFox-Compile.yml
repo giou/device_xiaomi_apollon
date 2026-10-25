@@ -672,10 +672,77 @@ jobs:
           echo "No samples captured." >> "$GITHUB_STEP_SUMMARY"
           exit 0
         fi
-        awk -F, 'NR>1 { if ($2+0>mem) mem=$2+0; if ($3+0>swap) swap=$3+0; if ($4+0>rss) rss=$4+0; if ($5+0>vsw) vsw=$5+0; if ($6+0>psi) psi=$6+0; if ($7+0>pio) pio=$7+0; if (first=="") first=$8+0; last=$8+0 } END { printf "| metric | peak/last |\n|---|---|\n| memory used | %d MB |\n| swap used | %d MB |\n| soong RSS | %d MB |\n| soong VmSwap | %d MB |\n| PSI memory some avg10 | %.2f |\n| PSI io some avg10 | %.2f |\n| swap-out | %.1f GiB |\n", mem, swap, int(rss/1024), int(vsw/1024), psi, pio, (last-first)*4/1024/1024 }' "$LOG" >> "$GITHUB_STEP_SUMMARY"
+        awk -F, 'NR>1 {
+          if ($2+0 > memtot) memtot = $2+0
+          if ($3+0 > mem) mem = $3+0
+          if (minfree == "" || $4+0 < minfree) minfree = $4+0
+          if (minavail == "" || $5+0 < minavail) minavail = $5+0
+          if ($6+0 > cached) cached = $6+0
+          if ($7+0 > anon) anon = $7+0
+          if ($8+0 > slab) slab = $8+0
+          if ($9+0 > swaptot) swaptot = $9+0
+          if ($10+0 > swap) swap = $10+0
+          if ($11+0 > rss) rss = $11+0
+          if ($12+0 > vsw) vsw = $12+0
+          if ($13+0 > pmsome) pmsome = $13+0
+          if ($14+0 > pmfull) pmfull = $14+0
+          if ($15+0 > piosome) piosome = $15+0
+          if ($16+0 > piofull) piofull = $16+0
+          if ($17+0 > pcpu) pcpu = $17+0
+          if ($18+0 > load) load = $18+0
+          if ($19+0 > runq) runq = $19+0
+          if ($20+0 > blockq) blockq = $20+0
+          if (firstin == "") firstin = $21+0
+          if (firstout == "") firstout = $22+0
+          if (firstscan == "") firstscan = $23+0
+          if (firststeal == "") firststeal = $24+0
+          if (firststall == "") firststall = $25+0
+          if (firstmaj == "") firstmaj = $26+0
+          if (firstwsa == "") firstwsa = $27+0
+          if (firstwsf == "") firstwsf = $28+0
+          if ($29+0 > dirty) dirty = $29+0
+          if ($30+0 > wb) wb = $30+0
+          if ($31+0 > zpool) zpool = $31+0
+          if ($32+0 > zstored) zstored = $32+0
+          if ($33+0 > zwritten) zwritten = $33+0
+          if (firstzlimit == "") firstzlimit = $34+0
+          if ($35+0 > toprss) { toprss = $35+0; topcomm = $36 }
+          lastin = $21+0; lastout = $22+0; lastscan = $23+0; laststeal = $24+0
+          laststall = $25+0; lastmaj = $26+0; lastwsa = $27+0; lastwsf = $28+0
+          lastzlimit = $34+0
+        }
+        END {
+          printf "| metric | peak/min/delta |\n|---|---|\n"
+          printf "| memory total | %d MB |\n", memtot
+          printf "| memory used (free) peak | %d MB |\n", mem
+          printf "| memory free min | %d MB |\n", minfree
+          printf "| memory available min | %d MB |\n", minavail
+          printf "| page cache peak | %d MB |\n", cached
+          printf "| anon pages peak | %d MB |\n", anon
+          printf "| slab peak | %d MB |\n", slab
+          printf "| swap total / used peak | %d / %d MB |\n", swaptot, swap
+          printf "| soong RSS peak | %d MB |\n", int(rss/1024)
+          printf "| soong VmSwap peak | %d MB |\n", int(vsw/1024)
+          printf "| PSI memory some / full peak | %.2f / %.2f |\n", pmsome, pmfull
+          printf "| PSI io some / full peak | %.2f / %.2f |\n", piosome, piofull
+          printf "| PSI cpu some peak | %.2f |\n", pcpu
+          printf "| load1 / procs running / blocked peak | %.2f / %d / %d |\n", load, runq, blockq
+          printf "| swap-in | %.1f GiB |\n", (lastin-firstin)*4/1024/1024
+          printf "| swap-out | %.1f GiB |\n", (lastout-firstout)*4/1024/1024
+          printf "| direct reclaim scan / steal | %.0f / %.0f pages |\n", lastscan-firstscan, laststeal-firststeal
+          printf "| allocstall | %.0f |\n", laststall-firststall
+          printf "| major faults | %.0f pages |\n", lastmaj-firstmaj
+          printf "| anon / file refault | %.0f / %.0f pages |\n", lastwsa-firstwsa, lastwsf-firstwsf
+          printf "| dirty / writeback peak | %d / %d MB |\n", dirty, wb
+          printf "| zswap pool / stored / written back peak | %d / %d / %d MB |\n", zpool, zstored, zwritten
+          printf "| zswap pool limit hits | %.0f |\n", lastzlimit-firstzlimit
+          printf "| top RSS peak | %d MB (%s) |\n", int(toprss/1024), topcomm
+        }' "$LOG" >> "$GITHUB_STEP_SUMMARY"
         {
           echo ""
           echo '```'
+          free -m
+          grep -E '^(MemTotal|MemFree|MemAvailable|Cached|AnonPages|Slab|Dirty|Writeback):' /proc/meminfo
           swapon --show
           echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo n/a)"
           df -hT / /mnt
