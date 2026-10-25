@@ -225,16 +225,16 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        # Experiment 2026-10-25 (user): zswap is a shared compressed-swap
-        # pool competing with Soong for the same 15 GB. Disable it so the
-        # analyser keeps more resident pages, and lower swappiness from 10 to
-        # 5. The sampler + step timing decide whether to keep this; revert to
-        # 10 + zswap if it OOMs or is slower.
-        sudo sysctl -w vm.swappiness=5
+        # 2026-10-25: the zswap-off + swappiness-5 experiment is rejected.
+        # The cold parallel WLAN run ended at 26.3M swapped-out pages
+        # (100.5 GiB cumulative; R9 was 19.7 GiB) and the older fast runs
+        # (R7 15.1 GiB, R9 19.7 GiB) used zswap + swappiness 10. zswap keeps
+        # the swapped pages compressed in RAM; keep it on.
+        sudo sysctl -w vm.swappiness=10
         if [ -e /sys/module/zswap/parameters/enabled ]; then
-          echo 0 | sudo tee /sys/module/zswap/parameters/enabled >/dev/null 2>&1 || true
+          echo 1 | sudo tee /sys/module/zswap/parameters/enabled >/dev/null 2>&1 || true
         fi
-        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a') (disabled for the 2026-10-25 experiment)"
+        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a') (enabled; compressor $(cat /sys/module/zswap/parameters/compressor 2>/dev/null || echo n/a))"
         # Only the agent protection below is kept: take the Runner.*
         # processes out of the OOM victim pool so a spike kills a build
         # process (visible, retryable) instead of the process that reports
@@ -608,11 +608,11 @@ jobs:
         MON_PID=$!
         trap 'kill "${MON_PID}" 2>/dev/null || true' EXIT
         cd "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
-        # OrangeFox build ccache, always on: capped at 8.5G so it plus the
-        # kernel's 1G cache fit the repo's 10 GB cache quota (old versions are
-        # churned out by GitHub's LRU). Exported via GITHUB_ENV so the second
-        # (dual-build) variant shares the cache. probe=of-ccache only adds the
-        # stats report at the end.
+        # OrangeFox build ccache, always on: capped at 3G per variant (two
+        # legs ~6G + kernel 1G + Go/kernel-image; old versions are churned out
+        # by GitHub's 10 GB LRU). The parallel sibling has its own ccache key,
+        # so the first parallel run is cold; later runs restore their own.
+        # probe=of-ccache only adds the stats report at the end.
         # The dir MUST live under out/: Soong runs hermetic host actions in a
         # sandbox with the source tree read-only, and ccache's first write
         # there dies with EROFS (fatal to the build). out/ is writable inside
@@ -633,7 +633,7 @@ jobs:
         echo "CCACHE_COMPRESS=1" >> "${GITHUB_ENV}"
         echo "CCACHE_MAXSIZE=3000M" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
-        echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
+        echo "of ccache: using ${CCACHE_DIR} (cap 3000M)"
         echo "of ccache: restored entries: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
         set +e +u
         set +o pipefail
@@ -683,6 +683,11 @@ jobs:
           sudo grep -H . /sys/kernel/debug/zswap/* 2>/dev/null | head -8
           echo '```'
         } >> "$GITHUB_STEP_SUMMARY" 2>/dev/null
+        # Upload the full CSV as a build artifact; the job summary only has
+        # peaks. The release job downloads it with the build artifact.
+        DEST="${GITHUB_WORKSPACE}/resource-usage-${VARIANT}.csv"
+        : > "$DEST"
+        [ ! -s "$LOG" ] || cp "$LOG" "$DEST"
         echo "resource samples (tail):"
         tail -6 "$LOG"
 
@@ -855,7 +860,7 @@ jobs:
 
     - name: Upload build artifacts
       if: ${{ success() && inputs.probe == 'none' }}
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, pinned 2026-10-25
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0, pinned 2026-10-25 (node24; silences the Node 20 deprecation)
       with:
         name: build-${{ matrix.variant }}
         path: |
@@ -863,6 +868,7 @@ jobs:
           OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip
           build-meta.env
           release-body.md
+          resource-usage-${{ matrix.variant }}.csv
         if-no-files-found: error
 
   release:
@@ -877,7 +883,7 @@ jobs:
       DEVICE_NAME: 'apollon'
     steps:
     - name: Download build artifacts
-      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, pinned 2026-10-25
+      uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0, pinned 2026-10-25 (node24; silences the Node 20 deprecation)
       with:
         pattern: build-*
         path: artifacts
@@ -907,8 +913,10 @@ jobs:
         for d in artifacts/build-*; do
           [ -d "$d" ] || continue
           suffix="$(grep -m1 '^SUFFIX=' "$d/build-meta.env" | cut -d= -f2- || true)"
-          for f in "$d"/OrangeFox*.img "$d"/OrangeFox*.zip; do
-            [ -e "$f" ] || continue
+          # upload-artifact keeps the least common ancestor: the image/zip
+          # land under OrangeFox/fox_<branch>/out/target/product/<device>/,
+          # not at the artifact root. Find them; do not assume a flat layout.
+          while IFS= read -r -d '' f; do
             base="$(basename "$f")"
             if [[ "$base" != OrangeFox-R12.0-Unofficial-* ]]; then
               echo "::error::Unexpected asset name '${base}' - vendor naming changed, review manually."
@@ -918,7 +926,7 @@ jobs:
             ext="${rest##*.}"
             stem="${rest%.*}"
             cp "$f" "release-assets/OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${suffix}.${ext}"
-          done
+          done < <(find "$d" -type f \( -name 'OrangeFox*.img' -o -name 'OrangeFox*.zip' \) -print0)
         done
         [ -s "artifacts/build-${PRIMARY}/release-body.md" ] \
           || { echo "::error::release body is empty."; exit 1; }
