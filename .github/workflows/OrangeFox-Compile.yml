@@ -267,17 +267,11 @@ jobs:
             exit 1
           fi
         fi
-        # Upstream's fox_16.0 now includes the Files/NAS dependencies and the
-        # fox toolchain projects; all are anonymously fetchable. The only
-        # incompatibility is the manifest-level external/rclone, which collides
-        # with the device tree's own rclone clone (twrp.dependencies).
-        # giou/Manifest therefore pins upstream c5bc461 with that project
-        # removed; the pin lives in that repo's fox_16.0 branch, so repo sync
-        # cannot undo it.
-        # shortcut: drop this once the dt stops cloning external/rclone.
+        # Use the official OrangeFox manifest. The NAS dependencies
+        # (external/rclone + external/libfuse3) and the ttyd/wpa_supplicant_8
+        # projects come from it; the dt keeps only its vibrator fork.
         if grep -q "https://gitlab.com/OrangeFox/Manifest.git" orangefox_sync.sh; then
-          sed -i "s#https://gitlab.com/OrangeFox/Manifest.git#https://github.com/giou/Manifest.git#" orangefox_sync.sh
-          grep -n "Manifest.git" orangefox_sync.sh
+          echo "Using the official OrangeFox manifest."
         else
           echo "::error::expected the OrangeFox Manifest URL in orangefox_sync.sh - upstream changed, review manually."
           exit 1
@@ -634,10 +628,9 @@ jobs:
     - name: Assert NAS binaries in the wlan recovery image
       if: ${{ inputs.probe != 'kernel-ccache' }}
       # A wlan recovery drives OrangeFox "Network Storage" through rclone +
-      # fusermount3. Both come from external/rclone + external/libfuse via
-      # twrp.dependencies; when either was missing the build still went green
-      # and shipped a recovery whose NAS mount can never start (R12.0_9 ..
-      # R12.0_14). Fail loud instead of shipping it again.
+      # fusermount3. Both come from the official manifest: external/rclone
+      # (fox_cloud_mount_rclone) + external/libfuse3
+      # (fox_cloud_mount_fusermount3). Fail loud if either is missing.
       run: |
         set -euo pipefail
         OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
@@ -652,7 +645,7 @@ jobs:
         ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
         for b in rclone fusermount3; do
           if [[ ! -x "${BIN_DIR}/${b}" ]]; then
-            echo "::error::${b} missing from the wlan recovery ramdisk - check twrp.dependencies (external/rclone, external/libfuse) and the TWRP_REQUIRED_MODULES list in orangefox.mk."
+            echo "::error::${b} missing from the wlan recovery ramdisk - check the official external/rclone + external/libfuse3 modules and the TWRP_REQUIRED_MODULES list in orangefox.mk."
             exit 1
           fi
         done
@@ -804,7 +797,7 @@ jobs:
         ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
         for b in rclone fusermount3; do
           if [[ ! -x "${BIN_DIR}/${b}" ]]; then
-            echo "::error::${b} missing from the wlan recovery ramdisk of the other variant - check twrp.dependencies (external/rclone, external/libfuse) and the TWRP_REQUIRED_MODULES list in orangefox.mk."
+            echo "::error::${b} missing from the wlan recovery ramdisk of the other variant - check the official external/rclone + external/libfuse3 modules and the TWRP_REQUIRED_MODULES list in orangefox.mk."
             exit 1
           fi
         done

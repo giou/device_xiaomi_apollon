@@ -4,29 +4,5 @@
     "repository": "giou/android_vendor_qcom_opensource_vibrator",
     "target_path": "vendor/qcom/opensource/vibrator",
     "branch": "lineage-24.0"
-  },
-  {
-    "remote": "https://android.googlesource.com/platform",
-    "repository": "external/wpa_supplicant_8",
-    "target_path": "external/wpa_supplicant_8",
-    "branch": "android16-s2-release"
-  },
-  {
-    "remote": "github",
-    "repository": "OrangeFox16/android_external_ttyd",
-    "target_path": "external/ttyd",
-    "branch": "fox_16.0"
-  },
-  {
-    "remote": "github",
-    "repository": "OrangeFox16/android_external_rclone",
-    "target_path": "external/rclone",
-    "branch": "fox_16.0"
-  },
-  {
-    "remote": "github",
-    "repository": "OrangeFox16/android_external_libfuse",
-    "target_path": "external/libfuse",
-    "branch": "fox_16.0"
   }
 ]
