@@ -52,7 +52,7 @@ jobs:
       VENDOR_SINCE: 2026-10-12
       VOLDS_BASE: 953de9608eb78380b3c4e39e801c2bc0af7dbddc
       RECOVERY_BASE: 0f7831d3240f4c3925a0b5fd7d2c907ddf8704c2
-      MANIFEST_PIN: 4c65ca28fa67580172ee6bf99892a054c19dcebe
+      MANIFEST_PIN: cba4ceb595fed927b21111c1483c7bbf87e3def4
       FOXCLI_BASE: ce8125d5dba50b3c03e8c674221206bb7ce5c705
     steps:
       - name: Check for drift
