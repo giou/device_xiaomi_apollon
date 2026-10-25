@@ -1,7 +1,7 @@
 [
   {
     "remote": "github",
-    "repository": "giou/android_vendor_qcom_opensource_vibrator",
+    "repository": "LineageOS/android_vendor_qcom_opensource_vibrator",
     "target_path": "vendor/qcom/opensource/vibrator",
     "branch": "lineage-24.0"
   }
