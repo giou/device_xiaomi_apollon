@@ -51,7 +51,7 @@ jobs:
       VOLDS_BASE: 953de9608eb78380b3c4e39e801c2bc0af7dbddc
       RECOVERY_BASE: 0f7831d3240f4c3925a0b5fd7d2c907ddf8704c2
       MANIFEST_PIN: c5bc4610ea5ace4b2d1f74278b99574e93adf6f8
-      FOXCLI_BASE: 288f5579550ebd0d5e6325c1844a65bd3fb42d8c
+      FOXCLI_BASE: ce8125d5dba50b3c03e8c674221206bb7ce5c705
     steps:
       - name: Check for drift
         run: |
