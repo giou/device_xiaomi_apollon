@@ -267,15 +267,14 @@ jobs:
             exit 1
           fi
         fi
-        # Upstream's 2026-10-18 fox.xml commit (eb1e5d7) adds three projects
-        # that anonymous builds cannot fetch (private/unpublished:
-        # external/libarchive, external/libfuse3, prebuilts/fox-go) and a
-        # manifest-level external/rclone that collides with the device tree's
-        # own rclone clone (twrp.dependencies). Build from the pinned
-        # public-good snapshot (2026-10-01) in giou/Manifest instead; the pin
-        # lives in that repo's fox_16.0 branch, so repo sync cannot undo it.
-        # shortcut: drop this once upstream publishes those projects and the
-        # dt stops cloning rclone/libfuse itself.
+        # Upstream's fox_16.0 now includes the Files/NAS dependencies and the
+        # fox toolchain projects; all are anonymously fetchable. The only
+        # incompatibility is the manifest-level external/rclone, which collides
+        # with the device tree's own rclone clone (twrp.dependencies).
+        # giou/Manifest therefore pins upstream c5bc461 with that project
+        # removed; the pin lives in that repo's fox_16.0 branch, so repo sync
+        # cannot undo it.
+        # shortcut: drop this once the dt stops cloning external/rclone.
         if grep -q "https://gitlab.com/OrangeFox/Manifest.git" orangefox_sync.sh; then
           sed -i "s#https://gitlab.com/OrangeFox/Manifest.git#https://github.com/giou/Manifest.git#" orangefox_sync.sh
           grep -n "Manifest.git" orangefox_sync.sh
@@ -414,7 +413,7 @@ jobs:
           git -C "${dir}" log --oneline -3
         done <<'EOF'
         system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
-        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon
+        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon-wlan
         external/foxcli|https://github.com/giou/foxcli|master
         EOF
         # Record the fork HEAD for the auto-generated release notes (each
