@@ -5,11 +5,10 @@ name: OrangeFox - Build
 #
 # The dispatched branch picks the PRIMARY variant: fox_16.0-wlan builds the
 # wlan stack (its assets are tagged -wlan), fox_16.0 builds the mainline
-# recovery (plain asset names). Input 'build': both = also build the sibling
-# variant in this same runner (incremental - manifest/kernel/objects are
-# shared, so the second variant is NOT a from-scratch compile); single = this
-# branch's variant only. Bump FOX_MAINTAINER_PATCH_VERSION in fox_apollon.mk
-# before dispatching.
+# recovery (plain asset names). Input 'build': both = build the two variants
+# in parallel on two free hosted runners; single = this branch's variant only.
+# A release job downloads both artifacts and publishes one release.
+# Bump FOX_MAINTAINER_PATCH_VERSION in fox_apollon.mk before dispatching.
 #
 # Credits to:
 # https://github.com/TeamWin
@@ -23,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       build:
-        description: 'both variants, or this branch only'
+        description: 'both variants in parallel, or this branch only'
         type: choice
         options: [both, single]
         default: both
@@ -43,8 +42,34 @@ defaults:
     shell: bash
 
 jobs:
+  prepare:
+    name: Plan variants
+    # Matrix values cannot be referenced in a job-level if, so choose the
+    # matrix before the builds: both for a normal dispatch, one leg when
+    # build=single.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - name: Choose matrix
+      id: matrix
+      run: |
+        set -euo pipefail
+        if [[ "${{ inputs.build }}" == "both" ]]; then
+          echo 'matrix={"include":[{"variant":"wlan","dt_branch":"fox_16.0-wlan","fork_branch":"fox_16.0-apollon-wlan","suffix":"-wlan"},{"variant":"mainline","dt_branch":"fox_16.0","fork_branch":"fox_16.0-apollon","suffix":""}]}' >> "$GITHUB_OUTPUT"
+        elif [[ "${GITHUB_REF_NAME}" == *wlan* ]]; then
+          echo 'matrix={"include":[{"variant":"wlan","dt_branch":"fox_16.0-wlan","fork_branch":"fox_16.0-apollon-wlan","suffix":"-wlan"}]}' >> "$GITHUB_OUTPUT"
+        else
+          echo 'matrix={"include":[{"variant":"mainline","dt_branch":"fox_16.0","fork_branch":"fox_16.0-apollon","suffix":""}]}' >> "$GITHUB_OUTPUT"
+        fi
+
   build:
-    name: Build OFR by ${{ github.actor }}
+    name: Build ${{ matrix.variant }} OFR by ${{ github.actor }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     # ubuntu-24.04: the newest image every step supports (slimhub_actions
     # handles 22.04/24.04 only - 26.04 would break the cleanup step; the
     # OrangeFox build-env script explicitly supports 24.04). Newer kernel =
@@ -55,15 +80,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 720
     permissions:
-      contents: write
+      contents: read
     env:
       MANIFEST_BRANCH: '16.0'
-      DEVICE_TREE_BRANCH: 'fox_16.0'
+      DEVICE_TREE_BRANCH: ${{ matrix.dt_branch }}
       DEVICE_PATH: 'device/xiaomi/apollon'
       DEVICE_NAME: 'apollon'
       BUILD_TARGET: 'recovery'
       DEVICE_TREE: 'https://github.com/giou/device_xiaomi_apollon'
       ALLOW_MISSING_DEPENDENCIES: 'true'
+      VARIANT_SUFFIX: ${{ matrix.suffix }}
+      PRIMARY_VARIANT: ${{ contains(github.ref_name, 'wlan') && 'wlan' || 'mainline' }}
+      GOCACHE: ${{ github.workspace }}/.go-build-cache
       DEBIAN_FRONTEND: noninteractive
     steps:
     - name: Checkout
@@ -100,35 +128,20 @@ jobs:
         fi
         echo "Input validation passed."
 
-        # Variant naming: the branch decides the primary variant; the sibling
-        # build derives from it. -wlan assets carry the WLAN/network features.
-        VARIANT="mainline"
-        [[ "${GITHUB_REF_NAME}" == *wlan* ]] && VARIANT="wlan"
-        if [[ "${VARIANT}" == "wlan" ]]; then
-          VARIANT_SUFFIX="-wlan"
-          OTHER_VARIANT="mainline"
-          OTHER_DT_BRANCH="fox_16.0"
-          OTHER_FORK_BRANCH="fox_16.0-apollon"
-          OTHER_SUFFIX=""
-        else
-          VARIANT_SUFFIX=""
-          OTHER_VARIANT="wlan"
-          OTHER_DT_BRANCH="fox_16.0-wlan"
-          OTHER_FORK_BRANCH="fox_16.0-apollon-wlan"
-          OTHER_SUFFIX="-wlan"
-        fi
-        echo "Primary variant: ${VARIANT} (asset suffix '${VARIANT_SUFFIX}')"
-        echo "Other variant:   ${OTHER_VARIANT} (asset suffix '${OTHER_SUFFIX}')"
+        # One matrix leg per variant. The dispatched branch is the primary for
+        # release notes and release version; the sibling is fetched by the
+        # other leg. -wlan assets carry the WLAN/network features.
+        VARIANT="${{ matrix.variant }}"
+        VARIANT_SUFFIX="${{ matrix.suffix }}"
+        echo "Variant: ${VARIANT} (asset suffix '${VARIANT_SUFFIX}')"
+        echo "Primary variant for this dispatch: ${PRIMARY_VARIANT}"
+        echo "VARIANT=${VARIANT}" >> "${GITHUB_ENV}"
         echo "VARIANT_SUFFIX=${VARIANT_SUFFIX}" >> "${GITHUB_ENV}"
-        echo "OTHER_VARIANT=${OTHER_VARIANT}" >> "${GITHUB_ENV}"
-        echo "OTHER_DT_BRANCH=${OTHER_DT_BRANCH}" >> "${GITHUB_ENV}"
-        echo "OTHER_FORK_BRANCH=${OTHER_FORK_BRANCH}" >> "${GITHUB_ENV}"
-        echo "OTHER_SUFFIX=${OTHER_SUFFIX}" >> "${GITHUB_ENV}"
 
     - name: Restore build caches (ccache)
-      # One entry carrying both ccache dirs (9.5G cap total vs the repo's
-      # 10 GB quota; GitHub's LRU evicts older versions as new ones save).
-      # A cold run saves a fresh entry at the end; the next run restores it.
+      # Per-variant ccache entry: 3G OF + 1G kernel per leg (~8G for two
+      # parallel builds) + the Go cache + the kernel image fit the repo's
+      # 10 GB quota. A cold run saves a fresh entry; the next run restores it.
       # The OF dir lives under out/: Soong runs hermetic host actions in a
       # sandbox with the source tree read-only, and ccache's cache-dir write
       # trips EROFS there (runs 39006228739, 39012647989 — external/icu host
@@ -140,9 +153,23 @@ jobs:
         path: |
           ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/ccache-of
           ${{ github.workspace }}/ccache
-        key: ccache-${{ env.MANIFEST_BRANCH }}-v1-${{ github.run_id }}
+        key: ccache-${{ env.MANIFEST_BRANCH }}-${{ matrix.variant }}-v1-${{ github.run_id }}
         restore-keys: |
-          ccache-${{ env.MANIFEST_BRANCH }}-v1-
+          ccache-${{ env.MANIFEST_BRANCH }}-${{ matrix.variant }}-v1-
+
+    - name: Restore Go build cache (Soong bootstrap)
+      # The Soong bootstrap is a host Go build (about 2 min); the Go build
+      # cache and the bootstrap outputs are content-addressed and safe to
+      # reuse. Shared by both matrix legs (same key); the first saver wins.
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, pinned 2026-10-17
+      with:
+        path: |
+          ${{ github.workspace }}/.go-build-cache
+          ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/soong/.bootstrap
+        key: go-build-${{ env.MANIFEST_BRANCH }}-v1-${{ github.run_id }}
+        restore-keys: |
+          go-build-${{ env.MANIFEST_BRANCH }}-v1-
+
 
     - name: Clean-up
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
@@ -198,22 +225,16 @@ jobs:
       # (visible, retryable) instead of the process that reports the job.
       run: |
         set -euo pipefail
-        # Swappiness 10 (2026-10-19): the 2026-10-18 experiment of forcing it
-        # to 100 stalled two hosted builds for 4h+ at the analysis start
-        # (disk-only swap, no zram on the runner image). The default 60 passed
-        # and the analysis still swaps heavily; 10 keeps
-        # hot compiler heap pages resident and is measured by the resource
-        # sampler. zram is unavailable on this image; zswap is enabled below.
-        sudo sysctl -w vm.swappiness=10
-        # zswap: compress swapped pages in RAM before the SSD write. The
-        # hosted image has it compiled in but disabled ("N" on v23); enable
-        # at runtime. The analysis is single-threaded and I/O-bound, so the
-        # other cores absorb the compression cost. SSD wear is not the goal -
-        # lower swap latency is.
+        # Experiment 2026-10-25 (user): zswap is a shared compressed-swap
+        # pool competing with Soong for the same 15 GB. Disable it so the
+        # analyser keeps more resident pages, and lower swappiness from 10 to
+        # 5. The sampler + step timing decide whether to keep this; revert to
+        # 10 + zswap if it OOMs or is slower.
+        sudo sysctl -w vm.swappiness=5
         if [ -e /sys/module/zswap/parameters/enabled ]; then
-          echo 1 | sudo tee /sys/module/zswap/parameters/enabled >/dev/null 2>&1 || true
+          echo 0 | sudo tee /sys/module/zswap/parameters/enabled >/dev/null 2>&1 || true
         fi
-        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a') compressor=$(cat /sys/module/zswap/parameters/compressor 2>/dev/null || echo 'n/a') pool=$(cat /sys/module/zswap/parameters/max_pool_percent 2>/dev/null || echo 'n/a')"
+        echo "zswap: $(cat /sys/module/zswap/parameters/enabled 2>/dev/null || echo 'n/a') (disabled for the 2026-10-25 experiment)"
         # Only the agent protection below is kept: take the Runner.*
         # processes out of the OOM victim pool so a spike kills a build
         # process (visible, retryable) instead of the process that reports
@@ -320,15 +341,21 @@ jobs:
           echo "::error::Manifest checkout not found at ${FOX_ROOT}. Set-up Manifest probably failed."
           exit 1
         fi
-        # This workflow lives in the device tree itself: export the exact commit
-        # this run was triggered on into the manifest (a plain copy would try to
-        # copy the manifest into itself - the checkout root contains it).
-        # COMMIT_ID is GITHUB_SHA by construction.
+        # This workflow lives in the device tree itself: the dispatch branch
+        # is already checked out; the sibling matrix leg fetches its branch.
+        # A plain copy would try to copy the manifest into itself.
+        if [[ "${DEVICE_TREE_BRANCH}" == "${GITHUB_REF_NAME}" ]]; then
+          DT_SHA="${GITHUB_SHA}"
+        else
+          git -C "${GITHUB_WORKSPACE}" fetch --depth=1 origin "${DEVICE_TREE_BRANCH}"
+          DT_SHA="$(git -C "${GITHUB_WORKSPACE}" rev-parse FETCH_HEAD)"
+        fi
         rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
         mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
-        git -C "${GITHUB_WORKSPACE}" archive "${GITHUB_SHA}" | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
-        echo "COMMIT_ID=${GITHUB_SHA}" >> "${GITHUB_ENV}"
-        echo "Tree placed at ${DEVICE_PATH} from ${GITHUB_SHA} (${GITHUB_REF_NAME})"
+        git -C "${GITHUB_WORKSPACE}" archive "${DT_SHA}" | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
+        echo "COMMIT_ID=${DT_SHA}" >> "${GITHUB_ENV}"
+        echo "DT_SHA=${DT_SHA}" >> "${GITHUB_ENV}"
+        echo "Tree placed at ${DEVICE_PATH} from ${DT_SHA} (${DEVICE_TREE_BRANCH})"
 
     - name: Fetch Magisk 31.1 addon zip
       run: |
@@ -392,8 +419,10 @@ jobs:
         set -euo pipefail
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
         cd "${FOX_ROOT}"
+        RECOVERY_FORK_BRANCH="${{ matrix.fork_branch }}"
         while IFS='|' read -r dir repo branch; do
           [[ -n "${dir}" ]] || continue
+          branch="${branch/__RECOVERY_FORK_BRANCH__/${RECOVERY_FORK_BRANCH}}"
           if [[ ! -d "${dir}" ]]; then
             echo "::error::${dir} missing after sync - manifest layout changed, review manually."
             exit 1
@@ -407,7 +436,7 @@ jobs:
           git -C "${dir}" log --oneline -3
         done <<'EOF'
         system/vold|https://github.com/giou/android_system_vold|fox_16.0-apollon
-        bootable/recovery|https://github.com/giou/Recovery.git|fox_16.0-apollon-wlan
+        bootable/recovery|https://github.com/giou/Recovery.git|__RECOVERY_FORK_BRANCH__
         external/foxcli|https://github.com/giou/foxcli|master
         EOF
         # Record the fork HEAD for the auto-generated release notes (each
@@ -436,7 +465,39 @@ jobs:
         echo "adbd TLS port patch applied:"
         grep -n 'new TlsServer' "${ADBWIFI}"
 
+    - name: Resolve kernel cache key
+      id: kernel-key
+      # The kernel is variant-independent and only changes when LineageOS
+      # moves lineage-24.0 or the tree's clang prebuilt changes. Cache the
+      # built Image; skip the 10-minute clone/config/make on a hit.
+      run: |
+        set -euo pipefail
+        KERNEL_SHA="$(git ls-remote https://github.com/LineageOS/android_kernel_xiaomi_sm8250 refs/heads/lineage-24.0 | awk '{print $1}')"
+        [ -n "${KERNEL_SHA}" ] || { echo "::error::could not resolve the LineageOS kernel head."; exit 1; }
+        CLANG_DIR="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/prebuilts/clang/host/linux-x86/clang-r547379"
+        [ -x "${CLANG_DIR}/bin/clang" ] || { echo "::error::clang-r547379 not found for the kernel cache key."; exit 1; }
+        CLANG_HASH="$(printf '%s' "$("${CLANG_DIR}/bin/clang" --version | head -n 1)" | sha256sum | cut -c1-12)"
+        echo "sha=${KERNEL_SHA}" >> "${GITHUB_OUTPUT}"
+        echo "clang=${CLANG_HASH}" >> "${GITHUB_OUTPUT}"
+        echo "kernel cache key: kernel-${KERNEL_SHA}-${CLANG_HASH}"
+
+    - name: Restore cached kernel image
+      id: kernel-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, pinned 2026-10-17
+      with:
+        path: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/prebuilt/apollon/kernel
+        key: kernel-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}
+
+    - name: Verify cached kernel image
+      if: steps.kernel-cache.outputs.cache-hit == 'true'
+      run: |
+        set -euo pipefail
+        K="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/prebuilt/apollon/kernel"
+        test -s "$K"
+        strings "$K" | grep -m1 "Linux version"
+
     - name: Build the kernel from LineageOS upstream
+      if: steps.kernel-cache.outputs.cache-hit != 'true'
       run: |
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
@@ -561,7 +622,7 @@ jobs:
         export CCACHE_DIR="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/out/ccache-of"
         export CCACHE_COMPRESS=1
         # The hosted ccache keeps the repo's 10 GB actions/cache quota in mind.
-        export CCACHE_MAXSIZE=8500M
+        export CCACHE_MAXSIZE=3000M
         # Same mtime-churn problem as the kernel step (fresh sync each run):
         # pin compiler identity to the tree prebuilt's version string.
         OF_CLANG="$(echo "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"/prebuilts/clang/host/linux-x86/clang-*/bin/clang | awk '{print $1}')"
@@ -570,7 +631,7 @@ jobs:
         echo "CCACHE_EXEC=${CCACHE_EXEC}" >> "${GITHUB_ENV}"
         echo "CCACHE_DIR=${CCACHE_DIR}" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPRESS=1" >> "${GITHUB_ENV}"
-        echo "CCACHE_MAXSIZE=8500M" >> "${GITHUB_ENV}"
+        echo "CCACHE_MAXSIZE=3000M" >> "${GITHUB_ENV}"
         echo "CCACHE_COMPILERCHECK=${CCACHE_COMPILERCHECK}" >> "${GITHUB_ENV}"
         echo "of ccache: using ${CCACHE_DIR} (cap 8500M)"
         echo "of ccache: restored entries: $(find "${CCACHE_DIR}" -type f 2>/dev/null | wc -l)"
@@ -626,7 +687,7 @@ jobs:
         tail -6 "$LOG"
 
     - name: Assert NAS binaries in the wlan recovery image
-      if: ${{ inputs.probe != 'kernel-ccache' }}
+      if: ${{ matrix.variant == 'wlan' && inputs.probe != 'kernel-ccache' }}
       # A wlan recovery drives OrangeFox "Network Storage" through rclone +
       # fusermount3. Both come from the official manifest: external/rclone
       # (fox_cloud_mount_rclone) + external/libfuse3
@@ -685,157 +746,27 @@ jobs:
           echo "::warning::could not read FOX_MAINTAINER_PATCH_VERSION from ${DEVICE_PATH}/fox_*.mk - the release title will not carry a build number."
         fi
 
-    - name: Rename assets with maintainer tag
-      if: ${{ inputs.probe == 'none' }}
-      # Maintainer patch version rides the banner (R12.0_<n>) and the release
-      # title, but the vendor packaging script names the files without it
-      # (OrangeFox-R12.0-Unofficial-apollon.*). Rename so the files carry it:
-      # OrangeFox-R12.0_<n>-Unofficial-apollon.*. Fail loud on unexpected names.
+    - name: Write build metadata
+      # The release job reads this from the artifact. The primary variant's
+      # banner version names both variants' assets and the release title.
       run: |
         set -euo pipefail
-        if [[ -z "${BUILD_VER:-}" || "${BUILD_VER}" == "0" ]]; then
-          echo "::error::BUILD_VER missing - Set Release Properties did not read FOX_MAINTAINER_PATCH_VERSION."
-          exit 1
-        fi
-        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
-        # Self-hosted only (persistent out/): a previous build's renamed assets
-        # (OrangeFox-R12.0_<n>-Unofficial-*) are still here and would fail the
-        # strict name check below (run 39212873859 died on a v17 leftover).
-        # Remove them; the current build's files still carry the vendor's
-        # unreleased name. No-op on hosted (fresh out/).
-        find "${OUT_DIR}" -maxdepth 1 -name 'OrangeFox-R12.0_[0-9]*-Unofficial-*' -delete -print || true
-        ls -lh "${OUT_DIR}"
-        renamed=0
-        for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
-          [[ -e "${f}" ]] || continue
-          base="$(basename "${f}")"
-          if [[ "${base}" != OrangeFox-R12.0-Unofficial-* ]]; then
-            echo "::error::Unexpected asset name '${base}' - vendor naming changed, review manually."
-            exit 1
-          fi
-          rest="${base#OrangeFox-R12.0-Unofficial-}"
-          ext="${rest##*.}"
-          stem="${rest%.*}"
-          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${VARIANT_SUFFIX}.${ext}"
-          mv "${f}" "${OUT_DIR}/${new}"
-          echo "${base} -> ${new}"
-          renamed=$((renamed + 1))
-        done
-        if [[ "${renamed}" -eq 0 ]]; then
-          echo "::error::No OrangeFox assets found to rename in ${OUT_DIR}."
-          exit 1
-        fi
-        ls -lh "${OUT_DIR}"/OrangeFox*
-
-    - name: Swap to the other variant
-      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
-      # Same runner, same workspace: the manifest and the kernel are shared,
-      # only the device tree files and bootable/recovery swap -> the second
-      # build is incremental (no from-scratch compile).
-      run: |
-        set -euo pipefail
-        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
-        OUT_DIR="${FOX_ROOT}/out/target/product/${DEVICE_NAME}"
-        # The freshly built kernel and the fetched Magisk addon are
-        # variant-independent; the sibling tree carries its own (stale)
-        # prebuilt kernel and no fetched Magisk zip, so carry both over.
-        mkdir -p "${RUNNER_TEMP}/carry"
-        cp "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel" "${RUNNER_TEMP}/carry/kernel"
-        cp "${FOX_ROOT}/${DEVICE_PATH}/magisk/Magisk-v31.1.zip" "${RUNNER_TEMP}/carry/Magisk-v31.1.zip"
-        cd "${GITHUB_WORKSPACE}"
-        git fetch --depth=1 origin "${OTHER_DT_BRANCH}"
-        rm -rf "${FOX_ROOT}/${DEVICE_PATH}"
-        mkdir -p "${FOX_ROOT}/${DEVICE_PATH}"
-        git archive FETCH_HEAD | tar -x -C "${FOX_ROOT}/${DEVICE_PATH}"
-        install -m 644 "${RUNNER_TEMP}/carry/kernel" "${FOX_ROOT}/${DEVICE_PATH}/prebuilt/apollon/kernel"
-        mkdir -p "${FOX_ROOT}/${DEVICE_PATH}/magisk"
-        install -m 644 "${RUNNER_TEMP}/carry/Magisk-v31.1.zip" "${FOX_ROOT}/${DEVICE_PATH}/magisk/Magisk-v31.1.zip"
-        cd "${FOX_ROOT}"
-        rm -rf bootable/recovery
-        git clone --depth=1 --single-branch --branch "${OTHER_FORK_BRANCH}" \
-          https://github.com/giou/Recovery.git bootable/recovery
-        # Drop the primary variant's ramdisk staging: install rules never remove
-        # files the sibling variant placed there (e.g. wlan binaries would ride
-        # into the mainline ramdisk); the staging is cheap to regenerate.
-        rm -rf "${OUT_DIR}/recovery/root"
-        echo "Swapped to ${OTHER_VARIANT}: dt=${OTHER_DT_BRANCH} fork=${OTHER_FORK_BRANCH}"
-        git -C bootable/recovery log --oneline -2
-
-    - name: Build the other variant (incremental)
-      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
-      env:
-        FOX_USE_SPECIFIC_MAGISK_ZIP: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/magisk/Magisk-v31.1.zip
-        FOX_DELETE_AROMAFM: '1'
-      run: |
-        set -eo pipefail
-        cd "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
-        set +e +u
-        set +o pipefail
-        source build/envsetup.sh
-        set -e
-        lunch "twrp_${DEVICE_NAME}-bp2a-eng"
-        # No cgroup memory guard (removed 2026-10-19, see the primary build).
-        mka adbd "${BUILD_TARGET}image"
-
-        if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
-          echo "== of build ccache report (second variant, cumulative) =="
-          ccache -s -v 2>/dev/null || true
-          echo "ccache files: $(find "${CCACHE_DIR:-/nonexistent}" -type f 2>/dev/null | wc -l)"
-        fi
-
-    - name: Assert NAS binaries in the wlan recovery image (other variant)
-      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
-      run: |
-        set -euo pipefail
-        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
-        BIN_DIR="${OUT_DIR}/recovery/root/system/bin"
-        # Same variant-from-inputs rule as the primary assert (see above).
-        if [[ "${OTHER_SUFFIX}" != "-wlan" ]]; then
-          echo "other variant is not wlan: NAS binaries are not part of it, skipping."
-          exit 0
-        fi
-        ls -l "${BIN_DIR}" | grep -E "rclone|fusermount3" || true
-        for b in rclone fusermount3; do
-          if [[ ! -x "${BIN_DIR}/${b}" ]]; then
-            echo "::error::${b} missing from the wlan recovery ramdisk of the other variant - check the official external/rclone + external/libfuse3 modules and the TWRP_REQUIRED_MODULES list in orangefox.mk."
-            exit 1
-          fi
-        done
-        echo "NAS binaries present: rclone, fusermount3"
-
-    - name: Rename the other variant assets
-      if: ${{ inputs.build == 'both' && inputs.probe != 'kernel-ccache' }}
-      run: |
-        set -euo pipefail
-        OUT_DIR="OrangeFox/fox_${MANIFEST_BRANCH}/out/target/product/${DEVICE_NAME}"
-        renamed=0
-        for f in "${OUT_DIR}"/OrangeFox*.img "${OUT_DIR}"/OrangeFox*.zip; do
-          [[ -e "${f}" ]] || continue
-          base="$(basename "${f}")"
-          if [[ "${base}" != OrangeFox-R12.0-Unofficial-* ]]; then
-            echo "skip (already renamed): ${base}"
-            continue
-          fi
-          rest="${base#OrangeFox-R12.0-Unofficial-}"
-          ext="${rest##*.}"
-          stem="${rest%.*}"
-          new="OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${OTHER_SUFFIX}.${ext}"
-          mv "${f}" "${OUT_DIR}/${new}"
-          echo "${base} -> ${new}"
-          renamed=$((renamed + 1))
-        done
-        if [[ "${renamed}" -eq 0 ]]; then
-          echo "::error::No ${OTHER_VARIANT} assets found to rename in ${OUT_DIR}."
-          exit 1
-        fi
-        ls -lh "${OUT_DIR}"/OrangeFox*
+        {
+          echo "VARIANT=${{ matrix.variant }}"
+          echo "SUFFIX=${{ matrix.suffix }}"
+          echo "DT_SHA=${COMMIT_ID}"
+          echo "FORK_HEAD=${FORK_HEAD:-unknown}"
+          echo "BANNER_VER=${BUILD_VER:-0}"
+          echo "DEVICE_TREE_BRANCH=${DEVICE_TREE_BRANCH}"
+        } > "${GITHUB_WORKSPACE}/build-meta.env"
+        cat "${GITHUB_WORKSPACE}/build-meta.env"
 
     - name: Compose release notes
       # Fully automatic: static template from the tree (RELEASE_NOTES.md) +
       # placeholders, plus a "Changes in this build" section diffed against
       # the previous release's embedded dt/fork markers. No human edit step.
       id: compose-notes
-      if: ${{ inputs.probe == 'none' }}
+      if: ${{ inputs.probe == 'none' && matrix.variant == env.PRIMARY_VARIANT }}
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -899,9 +830,7 @@ jobs:
             -e "s|%%FORK_HEAD%%|${FORK_HEAD:-unknown}|g" \
             -e "s|%%FORK_HEAD_SHORT%%|$(printf '%s' "${FORK_HEAD:-unknown}" | cut -c1-7)|g" \
             "${TPL}" > "${COMPOSED}"
-        {
-          echo "body<<RELEASE_NOTES_EOF"
-          python3 - "${COMPOSED}" "${AUTO_TMP}" <<'EOF'
+        python3 - "${COMPOSED}" "${AUTO_TMP}" > "${GITHUB_WORKSPACE}/release-body.md" <<'EOF'
         import sys
         import re
         tpl = open(sys.argv[1]).read()
@@ -916,18 +845,92 @@ jobs:
         text = re.sub(r'\n{3,}', '\n\n', text)
         sys.stdout.write(text)
         EOF
-          echo "RELEASE_NOTES_EOF"
-        } >> "${GITHUB_OUTPUT}"
         rm -f "${AUTO_TMP}" "${COMPOSED}"
+        wc -l "${GITHUB_WORKSPACE}/release-body.md"
+
+    - name: Prepare release body placeholder
+      if: ${{ matrix.variant != env.PRIMARY_VARIANT }}
+      run: |
+        : > "${GITHUB_WORKSPACE}/release-body.md"
+
+    - name: Upload build artifacts
+      if: ${{ inputs.probe == 'none' }}
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, pinned 2026-10-25
+      with:
+        name: build-${{ matrix.variant }}
+        path: |
+          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
+          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip
+          build-meta.env
+          release-body.md
+        if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: ${{ inputs.probe == 'none' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      DEVICE_NAME: 'apollon'
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4, pinned 2026-10-25
+      with:
+        pattern: build-*
+        path: artifacts
+
+    - name: Prepare release assets
+      id: prep
+      run: |
+        set -euo pipefail
+        if [[ "${GITHUB_REF_NAME}" == *wlan* ]]; then PRIMARY=wlan; else PRIMARY=mainline; fi
+        META="artifacts/build-${PRIMARY}/build-meta.env"
+        [ -f "${META}" ] || { echo "::error::missing ${META}"; exit 1; }
+        # shellcheck disable=SC1090
+        source "${META}"
+        BUILD_VER="${BANNER_VER:-0}"
+        [ -n "${BUILD_VER}" ] && [ "${BUILD_VER}" != "0" ] \
+          || { echo "::error::BUILD_VER missing from ${META}"; exit 1; }
+        BUILD_DATE="$(TZ=Asia/Manila date +%Y%m%d)"
+        echo "build_ver=${BUILD_VER}" >> "${GITHUB_OUTPUT}"
+        echo "build_date=${BUILD_DATE}" >> "${GITHUB_OUTPUT}"
+        echo "body_path=artifacts/build-${PRIMARY}/release-body.md" >> "${GITHUB_OUTPUT}"
+        echo "BUILD_VER=${BUILD_VER}" >> "${GITHUB_ENV}"
+        echo "BUILD_DATE=${BUILD_DATE}" >> "${GITHUB_ENV}"
+        echo "PRIMARY_VARIANT=${PRIMARY}" >> "${GITHUB_ENV}"
+        echo "RELEASE_BODY=artifacts/build-${PRIMARY}/release-body.md" >> "${GITHUB_ENV}"
+
+        mkdir -p release-assets
+        for d in artifacts/build-*; do
+          [ -d "$d" ] || continue
+          suffix="$(grep -m1 '^SUFFIX=' "$d/build-meta.env" | cut -d= -f2- || true)"
+          for f in "$d"/OrangeFox*.img "$d"/OrangeFox*.zip; do
+            [ -e "$f" ] || continue
+            base="$(basename "$f")"
+            if [[ "$base" != OrangeFox-R12.0-Unofficial-* ]]; then
+              echo "::error::Unexpected asset name '${base}' - vendor naming changed, review manually."
+              exit 1
+            fi
+            rest="${base#OrangeFox-R12.0-Unofficial-}"
+            ext="${rest##*.}"
+            stem="${rest%.*}"
+            cp "$f" "release-assets/OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${suffix}.${ext}"
+          done
+        done
+        [ -s "artifacts/build-${PRIMARY}/release-body.md" ] \
+          || { echo "::error::release body is empty."; exit 1; }
+        ls -lh release-assets
 
     - name: Upload to Release
-      if: ${{ inputs.probe == 'none' }}
       uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3, pinned 2026-10-17
       with:
         files: |
-          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
-          OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip
-        name: OrangeFox Recovery for ${{ env.DEVICE_NAME }} // ${{ env.BUILD_DATE }} (R12.0_${{ env.BUILD_VER }})
+          release-assets/OrangeFox*.img
+          release-assets/OrangeFox*.zip
+        name: OrangeFox Recovery for ${{ env.DEVICE_NAME }} // ${{ steps.prep.outputs.build_date }} (R12.0_${{ steps.prep.outputs.build_ver }})
         tag_name: ${{ github.run_id }}
         fail_on_unmatched_files: true
-        body: ${{ steps.compose-notes.outputs.body }}
+        body_path: ${{ steps.prep.outputs.body_path }}
