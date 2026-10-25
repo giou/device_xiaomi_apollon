@@ -174,6 +174,10 @@ jobs:
 
     - name: Clean-up
       uses: rokibhasansagar/slimhub_actions@0d4a750185d9ebd968a2df7cfd03bd313f1e93b3 # v25.42.5, pinned 2026-10-17
+      with:
+        # Build Environment needs both; removing and reinstalling them was a
+        # slow network path with no disk saving (clang/gh are used by the build).
+        retain: "vcs compiler_llvm_clang"
 
     - name: Swap Space (zram first, disk swap on the second disk)
       # Memory-pressure mitigations (2026-10-18): the runner lost
@@ -253,11 +257,30 @@ jobs:
     - name: Build Environment
       run: |
         set -euo pipefail
+        # A stalled Ubuntu/GitHub mirror must fail this step, not hang it.
+        sudo tee /etc/apt/apt.conf.d/99-ci-network >/dev/null <<'EOF'
+        Acquire::http::Timeout "30";
+        Acquire::https::Timeout "30";
+        Acquire::Retries "3";
+        Acquire::ForceIPv4 "true";
+        DPkg::Lock::Timeout "120";
+        EOF
         sudo apt-get update -qq
         sudo apt-get install -y -qq ccache
-        git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
+        timeout 120 git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
         cd scripts
-        sudo bash setup/android_build_env.sh
+        # gh is retained from the runner image. The upstream script adds a
+        # third-party apt repo and installs it again; that path stalled.
+        if command -v gh >/dev/null; then
+          sed -i '/^echo -e "Installing GitHub CLI"/,/^sudo apt install -y gh$/d' setup/android_build_env.sh
+          if grep -q 'Installing GitHub CLI' setup/android_build_env.sh; then
+            echo "::error::failed to skip the redundant GitHub CLI install."
+            exit 1
+          fi
+        fi
+        # Bound the script's own downloads too.
+        sed -i -E 's/^([[:space:]]*)(sudo )?curl /\1\2curl --connect-timeout 10 --max-time 120 --retry 3 /' setup/android_build_env.sh
+        sudo -E bash setup/android_build_env.sh
 
     - name: Set-up Manifest
       env:
