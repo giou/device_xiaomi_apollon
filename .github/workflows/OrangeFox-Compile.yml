@@ -489,7 +489,7 @@ jobs:
         key: kernel-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}
 
     - name: Verify cached kernel image
-      if: steps.kernel-cache.outputs.cache-hit == 'true'
+      if: ${{ success() && steps.kernel-cache.outputs.cache-hit == 'true' }}
       run: |
         set -euo pipefail
         K="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/prebuilt/apollon/kernel"
@@ -497,7 +497,7 @@ jobs:
         strings "$K" | grep -m1 "Linux version"
 
     - name: Build the kernel from LineageOS upstream
-      if: steps.kernel-cache.outputs.cache-hit != 'true'
+      if: ${{ success() && steps.kernel-cache.outputs.cache-hit != 'true' }}
       run: |
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
@@ -586,7 +586,7 @@ jobs:
         df -h "${GITHUB_WORKSPACE}" | tail -n 1
 
     - name: Building OrangeFox
-      if: ${{ inputs.probe != 'kernel-ccache' }}
+      if: ${{ success() && inputs.probe != 'kernel-ccache' }}
       env:
         # Absolute path to the Magisk 31.1 addon zip fetched above. Env beats
         # the tree's "?=" default; falls back to it (or upstream 30.7) if unset.
@@ -687,7 +687,7 @@ jobs:
         tail -6 "$LOG"
 
     - name: Assert NAS binaries in the wlan recovery image
-      if: ${{ matrix.variant == 'wlan' && inputs.probe != 'kernel-ccache' }}
+      if: ${{ success() && matrix.variant == 'wlan' && inputs.probe != 'kernel-ccache' }}
       # A wlan recovery drives OrangeFox "Network Storage" through rclone +
       # fusermount3. Both come from the official manifest: external/rclone
       # (fox_cloud_mount_rclone) + external/libfuse3
@@ -766,7 +766,7 @@ jobs:
       # placeholders, plus a "Changes in this build" section diffed against
       # the previous release's embedded dt/fork markers. No human edit step.
       id: compose-notes
-      if: ${{ inputs.probe == 'none' && matrix.variant == env.PRIMARY_VARIANT }}
+      if: ${{ success() && inputs.probe == 'none' && matrix.variant == env.PRIMARY_VARIANT }}
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
@@ -849,12 +849,12 @@ jobs:
         wc -l "${GITHUB_WORKSPACE}/release-body.md"
 
     - name: Prepare release body placeholder
-      if: ${{ matrix.variant != env.PRIMARY_VARIANT }}
+      if: ${{ success() && matrix.variant != env.PRIMARY_VARIANT }}
       run: |
         : > "${GITHUB_WORKSPACE}/release-body.md"
 
     - name: Upload build artifacts
-      if: ${{ inputs.probe == 'none' }}
+      if: ${{ success() && inputs.probe == 'none' }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, pinned 2026-10-25
       with:
         name: build-${{ matrix.variant }}
