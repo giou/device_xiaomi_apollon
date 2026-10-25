@@ -2,16 +2,16 @@ name: Upstream Drift Watch
 
 # Read-only Tier-1 maintenance: reports when upstream sources move past what
 # the tree was proven good against. Commits nothing, builds nothing, releases
-# nothing. Red (exit 1) means "act on the summary": for kernel/vendor/vold
-# that is refresh + device-test decrypt, for foxcli a fork merge. Plain
-# manifest drift is reported, not red; the build uses the official OrangeFox
-# manifest. Recovery-fork and kernel-fork drift is info only - triage / rebase,
-# not a release blocker. Green means "no drift".
+# nothing. Red (exit 1) means "act on the summary": for vendor/vold that is
+# refresh + device-test decrypt, for foxcli a fork merge. Plain manifest drift
+# is reported, not red; the build uses the official OrangeFox manifest. Kernel
+# blob-base and recovery-fork drift are info only - triage / refresh, not a
+# release blocker. Green means "no drift".
 #
 # Anchors (bump after the corresponding action):
 # - KERNEL_BASE: LOS kernel commit our dtb/recovery_dtbo blobs were extracted
-#   from (proven decrypting). The kernel Image itself is built from our own
-#   fork now, so drift here means the blob source moved.
+#   from (proven decrypting). The kernel Image is built from LineageOS
+#   upstream now, so drift here means the blob source moved.
 # - VENDOR_SINCE: date our recovery/root blobs were proven good.
 # - VOLDS_BASE: OrangeFox system/vold commit our fork was cut from.
 # - RECOVERY_BASE: OrangeFox bootable/Recovery commit our fork was cut from
@@ -135,17 +135,17 @@ jobs:
             echo "- Recovery fork: no drift (fork point == upstream tip)" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-          echo "=== kernel fork (lineage-24.0-apollon) vs LOS lineage-24.0 ==="
-          curl -sfL --retry 3 "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/lineage-24.0...giou:lineage-24.0-apollon" -o /tmp/kernel-fork-compare.json
-          KB=$(python3 -c "import json; print(json.load(open('/tmp/kernel-fork-compare.json')).get('behind_by', '?'))")
-          echo "kernel fork commits behind LOS: ${KB}"
+          echo "=== LineageOS kernel ${KERNEL_BRANCH} vs KERNEL_BASE ==="
+          curl -sfL --retry 3 "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/${KERNEL_BASE}...${KERNEL_BRANCH}" -o /tmp/kernel-base-compare.json
+          KB=$(python3 -c "import json; print(json.load(open('/tmp/kernel-base-compare.json')).get('ahead_by', '?'))")
+          echo "LOS kernel commits since the blob base: ${KB}"
           if [[ "${KB}" != "0" ]]; then
             {
-              echo "#### Kernel fork drift (info): ${KB} LOS commit(s) not in lineage-24.0-apollon"
-              echo "     (rebase the apollon patches onto LOS before the next release)"
+              echo "#### Kernel blob base drift (info): ${KB} LOS commit(s) since ${KERNEL_BASE:0:8}"
+              echo "     (review the dtb/recovery_dtbo blob source + decrypt before refreshing)"
             } | tee -a "${GITHUB_STEP_SUMMARY}"
           else
-            echo "- Kernel fork: in sync with LOS (ahead by the apollon patches only)" >> "${GITHUB_STEP_SUMMARY}"
+            echo "- Kernel blob base: in sync with LOS ${KERNEL_BRANCH}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
           echo "=== OrangeFox manifest: upstream vs our pin ==="
@@ -216,7 +216,7 @@ jobs:
           if [[ "${DRIFT}" != "0" ]]; then
             echo "" >> "${GITHUB_STEP_SUMMARY}"
             echo "## Action: apply the per-source action in the drift entries above" >> "${GITHUB_STEP_SUMMARY}"
-            echo "::error::Upstream drift detected - see the summary. kernel/vendor: refresh blobs + device-test decrypt, then bump the anchor; vold/foxcli: merge the fork; manifest: review the new upstream head before rebuilding."
+            echo "::error::Upstream drift detected - see the summary. vendor: refresh blobs + device-test decrypt, then bump the anchor; vold/foxcli: merge the fork; manifest: review the new upstream head before rebuilding."
             exit 1
           fi
           echo "No drift. Tree is current."

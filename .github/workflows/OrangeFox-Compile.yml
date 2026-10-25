@@ -436,13 +436,13 @@ jobs:
         echo "adbd TLS port patch applied:"
         grep -n 'new TlsServer' "${ADBWIFI}"
 
-    - name: Build the kernel from the apollon fork
+    - name: Build the kernel from LineageOS upstream
       run: |
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
-        KERNEL_REPO="https://github.com/giou/android_kernel_xiaomi_sm8250"
-        KERNEL_BRANCH="lineage-24.0-apollon"
+        KERNEL_REPO="https://github.com/LineageOS/android_kernel_xiaomi_sm8250"
+        KERNEL_BRANCH="lineage-24.0"
         KSRC="${RUNNER_TEMP}/kernel-src"
 
         # kernel build deps the runner image does not ship
