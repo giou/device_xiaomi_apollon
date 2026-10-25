@@ -334,6 +334,18 @@ jobs:
           attempt=$((attempt + 1))
         done
 
+    - name: Measure manifest checkout
+      run: |
+        set -euo pipefail
+        FOX_TREE="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        [ -d "${FOX_TREE}" ] || { echo "::error::Manifest checkout missing for size measurement."; exit 1; }
+        echo "Manifest checkout size:"
+        du -sh "${FOX_TREE}"
+        du -sh "${FOX_TREE}/.repo" "${FOX_TREE}/.repo/project-objects" 2>/dev/null || true
+        du -sh --exclude="${FOX_TREE}/.repo" --exclude="${FOX_TREE}/out" "${FOX_TREE}" 2>/dev/null || true
+        echo "Files: $(find "${FOX_TREE}" -type f | wc -l)"
+        df -hT "${FOX_TREE}" | tail -1
+
     - name: Place Device Tree
       run: |
         set -euo pipefail
