@@ -66,10 +66,10 @@ while :; do
   zwritten=0
   zlimit=0
   if [ -d /sys/kernel/debug/zswap ]; then
-    zpool=$(( $(sudo -n cat /sys/kernel/debug/zswap/pool_total_size 2>/dev/null || echo 0) / 1048576 ))
-    zstored=$(( $(sudo -n cat /sys/kernel/debug/zswap/stored_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
-    zwritten=$(( $(sudo -n cat /sys/kernel/debug/zswap/written_back_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
-    zlimit=$(sudo -n cat /sys/kernel/debug/zswap/pool_limit_hit 2>/dev/null || echo 0)
+    zpool=$(( $(sudo cat /sys/kernel/debug/zswap/pool_total_size 2>/dev/null || echo 0) / 1048576 ))
+    zstored=$(( $(sudo cat /sys/kernel/debug/zswap/stored_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
+    zwritten=$(( $(sudo cat /sys/kernel/debug/zswap/written_back_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
+    zlimit=$(sudo cat /sys/kernel/debug/zswap/pool_limit_hit 2>/dev/null || echo 0)
   fi
 
   read -r top_rss top_comm <<< "$(ps -eo rss=,comm= --sort=-rss 2>/dev/null | head -1)"
