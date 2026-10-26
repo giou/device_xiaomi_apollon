@@ -322,6 +322,12 @@ jobs:
         git config --global user.name "${GH_ACTOR}"
         git config --global user.email "${GH_ACTOR_ID}+${GH_ACTOR}@users.noreply.github.com"
         git config --global --add safe.directory '*'
+        # A stalled HTTPS transfer keeps the socket open and repo sync waits
+        # forever; the retry loop below only helps when the command exits.
+        # Abort a transfer that stays under 1 KB/s for a minute, and cap the
+        # whole attempt well above the normal 13 min so the resume can run.
+        git config --global http.lowSpeedLimit 1000
+        git config --global http.lowSpeedTime 60
         rm -rf sync
         git clone --depth=1 https://gitlab.com/OrangeFox/sync.git -b master
         cd sync
@@ -368,19 +374,30 @@ jobs:
         # transient 503s mid-sync (killed two runs: vendor/recovery, then
         # libbootloader). repo sync resumes partial checkouts, so re-running
         # the script is a safe resume - retry with backoff before failing.
-        attempt=1; max_attempts=4
+        attempt=1; max_attempts=3
         while [[ ${attempt} -le ${max_attempts} ]]; do
           echo "Manifest sync attempt ${attempt}/${max_attempts} ..."
-          if ./orangefox_sync.sh --branch "${MANIFEST_BRANCH}" --path "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"; then
+          rc=0
+          # 40 min cap per attempt (normal is ~13 min). timeout returns 124,
+          # which the loop treats as a failed attempt and resumes from the
+          # partial checkout.
+          timeout --foreground --kill-after=120 2400 \
+            ./orangefox_sync.sh --branch "${MANIFEST_BRANCH}" --path "${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}" || rc=$?
+          if [[ ${rc} -eq 0 ]]; then
             echo "Manifest sync succeeded on attempt ${attempt}."
             break
+          fi
+          if [[ ${rc} -eq 124 ]]; then
+            echo "::warning::Manifest sync hit the 40 min cap; aborted the stalled attempt."
+          else
+            echo "Manifest sync attempt ${attempt} failed with rc=${rc}."
           fi
           if [[ ${attempt} -eq ${max_attempts} ]]; then
             echo "::error::Manifest sync failed after ${max_attempts} attempts."
             exit 1
           fi
           wait_s=$((attempt * 90))
-          echo "Sync failed (likely transient 503), sleeping ${wait_s}s before retry ..."
+          echo "Sync failed (likely transient 503 or a stalled transfer), sleeping ${wait_s}s before retry ..."
           sleep ${wait_s}
           attempt=$((attempt + 1))
         done
