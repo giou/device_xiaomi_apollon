@@ -482,6 +482,19 @@ jobs:
         echo "FORK_HEAD=$(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)" >> "${GITHUB_ENV}"
         echo "fork HEAD for release notes: $(git -C "${FOX_ROOT}/bootable/recovery" rev-parse HEAD)"
 
+    - name: Free manifest metadata
+      # The checkout is complete and the fork overrides have their own git
+      # clones. The build reads the working trees; repo's 19G object store is
+      # dead weight that otherwise fills the 145G runner disk at ~73%.
+      run: |
+        set -euo pipefail
+        FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
+        [ -d "${FOX_ROOT}/.repo" ] || { echo "::error::repo metadata missing before cleanup."; exit 1; }
+        echo "Removing repo metadata after checkout:"
+        du -sh "${FOX_ROOT}/.repo"
+        rm -rf "${FOX_ROOT}/.repo"
+        df -hT "${FOX_ROOT}" | tail -1
+
     - name: Patch adbd TLS server to honor the requested port
       # The AOSP daemon binds its paired-ADB TLS server on port 0 (random) by
       # design: adb_wifi.cpp only watches persist.adb.tls_server.enable. Make
