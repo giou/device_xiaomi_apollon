@@ -267,19 +267,46 @@ jobs:
         Acquire::ForceIPv4 "true";
         DPkg::Lock::Timeout "120";
         EOF
+        # The runner's default Azure mirror was fast on one leg and stalled on
+        # the other. Probe a few Ubuntu mirrors and use the fastest reachable.
+        SOURCES=/etc/apt/sources.list.d/ubuntu.sources
+        if [ -f "${SOURCES}" ]; then
+          DEFAULT_MIRROR=$(sed -n 's/^URIs: //p' "${SOURCES}" | head -n1)
+          BEST_MIRROR="${DEFAULT_MIRROR}"
+          BEST_TIME=999
+          for mirror in \
+            "${DEFAULT_MIRROR}" \
+            "http://archive.ubuntu.com/ubuntu" \
+            "http://us.archive.ubuntu.com/ubuntu" \
+            "https://mirrors.edge.kernel.org/ubuntu"; do
+            [ -n "${mirror}" ] || continue
+            t=$(curl -fsSL --max-time 5 -o /dev/null -w '%{time_total}' \
+              "${mirror}/dists/noble/InRelease" 2>/dev/null) || continue
+            echo "mirror ${mirror}: ${t}s"
+            if awk -v a="${t}" -v b="${BEST_TIME}" 'BEGIN { exit !(a < b) }'; then
+              BEST_MIRROR="${mirror}"
+              BEST_TIME="${t}"
+            fi
+          done
+          if [ -n "${BEST_MIRROR}" ] && [ "${BEST_MIRROR}" != "${DEFAULT_MIRROR}" ]; then
+            echo "selecting mirror: ${BEST_MIRROR} (${BEST_TIME}s)"
+            sudo sed -i "s|${DEFAULT_MIRROR}|${BEST_MIRROR}|g" "${SOURCES}"
+          fi
+        fi
         sudo apt-get update -qq
         sudo apt-get install -y -qq ccache
         timeout 120 git clone --depth=1 https://gitlab.com/OrangeFox/misc/scripts.git -b master
         cd scripts
-        # gh is retained from the runner image. The upstream script adds a
-        # third-party apt repo and installs it again; that path stalled.
-        if command -v gh >/dev/null; then
-          sed -i '/^echo -e "Installing GitHub CLI"/,/^sudo apt install -y gh$/d' setup/android_build_env.sh
-          if grep -q 'Installing GitHub CLI' setup/android_build_env.sh; then
-            echo "::error::failed to skip the redundant GitHub CLI install."
-            exit 1
-          fi
+        # gh is only used for release-note diffs, which degrade gracefully.
+        # Never let its upstream installer add a third-party apt repo.
+        sed -i '/^echo -e "Installing GitHub CLI"/,/^sudo apt install -y gh$/d' setup/android_build_env.sh
+        if grep -q 'Installing GitHub CLI' setup/android_build_env.sh; then
+          echo "::error::failed to skip the redundant GitHub CLI install."
+          exit 1
         fi
+        # Recommends pull fonts/ImageMagick helpers the recovery build does
+        # not use; omit them to cut the slow-mirror download.
+        sed -i 's/\bapt install\b/apt install --no-install-recommends/g' setup/android_build_env.sh
         # Bound the script's own downloads too.
         sed -i -E 's/^([[:space:]]*)(sudo )?curl /\1\2curl --connect-timeout 10 --max-time 120 --retry 3 /' setup/android_build_env.sh
         sudo -E bash setup/android_build_env.sh
