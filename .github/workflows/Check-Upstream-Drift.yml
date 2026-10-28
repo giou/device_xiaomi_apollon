@@ -65,14 +65,16 @@ jobs:
           AHEAD=$(python3 -c "import json; print(json.load(open('/tmp/kernel-compare.json')).get('ahead_by', '?'))")
           echo "kernel commits ahead of snapshot: ${AHEAD}"
           if [[ "${AHEAD}" != "0" ]]; then
-            DRIFT=1
-            python3 -c "
+            {
+              echo "#### Kernel blob base drift (info): ${AHEAD} LOS commit(s) since ${KERNEL_BASE:0:8}"
+              echo "     (review the dtb/recovery_dtbo blob source + decrypt before refreshing)"
+              python3 -c "
           import json
           d = json.load(open('/tmp/kernel-compare.json'))
-          print('#### Kernel DRIFT: %s new commit(s)' % d.get('ahead_by'))
           for c in d.get('commits', [])[:15]:
               print('- %s %s %s' % (c['sha'][:8], c['commit']['author']['date'][:10], c['commit']['message'].splitlines()[0][:90]))
-          " | tee -a "${GITHUB_STEP_SUMMARY}"
+          "
+            } | tee -a "${GITHUB_STEP_SUMMARY}"
           else
             echo "- Kernel: no drift (snapshot == HEAD)" >> "${GITHUB_STEP_SUMMARY}"
           fi
@@ -136,17 +138,9 @@ jobs:
           fi
 
           echo "=== LineageOS kernel ${KERNEL_BRANCH} vs KERNEL_BASE ==="
-          curl -sfL --retry 3 "https://api.github.com/repos/LineageOS/android_kernel_xiaomi_sm8250/compare/${KERNEL_BASE}...${KERNEL_BRANCH}" -o /tmp/kernel-base-compare.json
-          KB=$(python3 -c "import json; print(json.load(open('/tmp/kernel-base-compare.json')).get('ahead_by', '?'))")
-          echo "LOS kernel commits since the blob base: ${KB}"
-          if [[ "${KB}" != "0" ]]; then
-            {
-              echo "#### Kernel blob base drift (info): ${KB} LOS commit(s) since ${KERNEL_BASE:0:8}"
-              echo "     (review the dtb/recovery_dtbo blob source + decrypt before refreshing)"
-            } | tee -a "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "- Kernel blob base: in sync with LOS ${KERNEL_BRANCH}" >> "${GITHUB_STEP_SUMMARY}"
-          fi
+          # Already compared above; kept out on purpose so the same drift is not
+          # reported twice with two different severities.
+          echo "- Kernel blob base: see the kernel entry above (info only)" >> "${GITHUB_STEP_SUMMARY}"
 
           echo "=== OrangeFox manifest: upstream vs our pin ==="
           curl -sfL --retry 3 "https://gitlab.com/api/v4/projects/OrangeFox%2FManifest/repository/compare?from=${MANIFEST_PIN}&to=fox_16.0" -o /tmp/manifest-compare.json
@@ -182,8 +176,16 @@ jobs:
             done < <(grep 'remote="OrangeFox"' /tmp/mf.xml | grep -o 'name="[^"]*"' | sed 's/name="//;s/"$//' | sort -u)
           done < <(python3 -c "import json; [print(f['name']) for f in json.load(open('/tmp/manifest-tree.json')) if f['name'].endswith('.xml')]")
           echo "manifest projects probed: ${CHECKED}, blocked: ${BLOCKED}"
-          if [ "${BLOCKED}" != "0" ]; then
-            echo "- Manifest fetchability: ${BLOCKED}/${CHECKED} OrangeFox project(s) blocked; omit them in giou/Manifest" >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${CHECKED}" = "0" ]; then
+            # Nothing probed means the tree listing, the XML format or the grep
+            # changed; claiming "all usable" would be false confidence.
+            DRIFT=1
+            echo "- Manifest fetchability: probe returned 0 projects (tree listing or XML pattern changed); inspect this workflow" >> "${GITHUB_STEP_SUMMARY}"
+          elif [ "${BLOCKED}" != "0" ]; then
+            # The build consumes the official OrangeFox manifest now, so a
+            # blocked project breaks it - this is a release blocker, not a note.
+            DRIFT=1
+            echo "- Manifest fetchability: ${BLOCKED}/${CHECKED} OrangeFox project(s) blocked; the build uses the official manifest, so mirror them in giou/Manifest and retarget MANIFEST_PIN, or pin a working head" >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "- Manifest fetchability: all ${CHECKED} OrangeFox project(s) anonymous-fetchable; official manifest is usable" >> "${GITHUB_STEP_SUMMARY}"
           fi
@@ -216,7 +218,7 @@ jobs:
           if [[ "${DRIFT}" != "0" ]]; then
             echo "" >> "${GITHUB_STEP_SUMMARY}"
             echo "## Action: apply the per-source action in the drift entries above" >> "${GITHUB_STEP_SUMMARY}"
-            echo "::error::Upstream drift detected - see the summary. vendor: refresh blobs + device-test decrypt, then bump the anchor; vold/foxcli: merge the fork; manifest: review the new upstream head before rebuilding."
+            echo "::error::Upstream drift detected - see the summary. vendor: refresh blobs + device-test decrypt, then bump the anchor; vold/foxcli: merge the fork; manifest: mirror the blocked projects or pin a working head (the pin's own drift is informational)."
             exit 1
           fi
           echo "No drift. Tree is current."

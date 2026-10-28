@@ -14,6 +14,12 @@ meminfo_mb() {
   awk -v k="$1:" '$1 == k { print int($2 / 1024); found = 1 } END { if (!found) print 0 }' /proc/meminfo
 }
 
+# One decimal, for counters that are normally a few hundred KB: flooring them to
+# whole MB hides exactly the dirty-page buildup this sampler is watching for.
+meminfo_mb1() {
+  awk -v k="$1:" '$1 == k { printf "%.1f", $2 / 1024; found = 1 } END { if (!found) print "0.0" }' /proc/meminfo
+}
+
 vmstat_counter() {
   awk -v k="$1" '$1 == k { print $2; found = 1 } END { if (!found) print 0 }' /proc/vmstat
 }
@@ -27,8 +33,8 @@ while :; do
   cached=$(meminfo_mb Cached)
   anon=$(meminfo_mb AnonPages)
   slab=$(meminfo_mb Slab)
-  dirty=$(meminfo_mb Dirty)
-  writeback=$(meminfo_mb Writeback)
+  dirty=$(meminfo_mb1 Dirty)
+  writeback=$(meminfo_mb1 Writeback)
 
   pid=$(pgrep -x soong_build 2>/dev/null | head -1)
   rss=0
@@ -65,7 +71,7 @@ while :; do
   zstored=0
   zwritten=0
   zlimit=0
-  if [ -d /sys/kernel/debug/zswap ]; then
+  if sudo test -d /sys/kernel/debug/zswap 2>/dev/null; then
     zpool=$(( $(sudo cat /sys/kernel/debug/zswap/pool_total_size 2>/dev/null || echo 0) / 1048576 ))
     zstored=$(( $(sudo cat /sys/kernel/debug/zswap/stored_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
     zwritten=$(( $(sudo cat /sys/kernel/debug/zswap/written_back_pages 2>/dev/null || echo 0) * 4096 / 1048576 ))
