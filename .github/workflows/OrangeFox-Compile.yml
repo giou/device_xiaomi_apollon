@@ -299,6 +299,14 @@ jobs:
         cd scripts
         # gh is only used for release-note diffs, which degrade gracefully.
         # Never let its upstream installer add a third-party apt repo.
+        # Guard the range delete: if the end marker stops matching (upstream
+        # rewording), sed would delete to EOF and the grep below would pass
+        # because the start line is already gone.
+        if grep -q 'Installing GitHub CLI' setup/android_build_env.sh \
+           && ! grep -q '^sudo apt install -y gh$' setup/android_build_env.sh; then
+          echo "::error::the GitHub CLI block changed upstream (end marker missing); review setup/android_build_env.sh."
+          exit 1
+        fi
         sed -i '/^echo -e "Installing GitHub CLI"/,/^sudo apt install -y gh$/d' setup/android_build_env.sh
         if grep -q 'Installing GitHub CLI' setup/android_build_env.sh; then
           echo "::error::failed to skip the redundant GitHub CLI install."
@@ -580,20 +588,35 @@ jobs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0, pinned 2026-10-17
       with:
         path: ${{ github.workspace }}/OrangeFox/fox_${{ env.MANIFEST_BRANCH }}/${{ env.DEVICE_PATH }}/prebuilt/apollon/kernel
-        key: kernel-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}
+        # Per-variant so the two matrix legs never reserve the same key: a
+        # shared key makes the slower leg fail its save with "Unable to reserve
+        # cache" and leaves the entry dependent on whichever finished first.
+        key: kernel-${{ matrix.variant }}-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}
 
     - name: Verify cached kernel image
+      id: kernel-verify
+      # A poisoned cache entry must not fail the run: report it, drop the entry
+      # and fall through to a rebuild instead of requiring a manual eviction.
+      continue-on-error: true
       if: ${{ success() && steps.kernel-cache.outputs.cache-hit == 'true' }}
       run: |
-        set -euo pipefail
+        set -uo pipefail
+        echo "valid=false" >> "$GITHUB_OUTPUT"
         K="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/prebuilt/apollon/kernel"
-        test -s "$K"
-        VERSION="$(strings "$K" | grep -m1 -E '^Linux version [0-9]+\.[0-9]+' || true)"
-        echo "$VERSION"
-        test -n "$VERSION"
+        if [ -s "$K" ]; then
+          VERSION="$(strings "$K" | grep -m1 -E '^Linux version [0-9]+\.[0-9]+' || true)"
+          echo "$VERSION"
+          if [ -n "$VERSION" ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        fi
+        echo "::warning::cached kernel is missing or unreadable; deleting the entry and rebuilding"
+        gh cache delete "kernel-${{ matrix.variant }}-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}" \
+          -R "$GITHUB_REPOSITORY" || true
 
     - name: Build the kernel from LineageOS upstream
-      if: ${{ success() && steps.kernel-cache.outputs.cache-hit != 'true' }}
+      if: ${{ success() && (steps.kernel-cache.outputs.cache-hit != 'true' || steps.kernel-verify.outputs.valid != 'true') }}
       run: |
         set -eo pipefail
         echo "runner parallelism: $(nproc) available CPUs, $(nproc --all) installed"
@@ -767,6 +790,9 @@ jobs:
         echo "### Hosted runner resource usage" >> "$GITHUB_STEP_SUMMARY"
         if [ ! -s "$LOG" ]; then
           echo "No samples captured." >> "$GITHUB_STEP_SUMMARY"
+          # Still produce the CSV so the artifact set is complete for the
+          # release job, which downloads it unconditionally.
+          : > "${GITHUB_WORKSPACE}/resource-usage-${VARIANT}.csv"
           exit 0
         fi
         awk -F, 'NR>1 {
@@ -1077,7 +1103,10 @@ jobs:
         mkdir -p release-assets
         for d in artifacts/build-*; do
           [ -d "$d" ] || continue
-          suffix="$(grep -m1 '^SUFFIX=' "$d/build-meta.env" | cut -d= -f2- || true)"
+          [ -s "$d/build-meta.env" ] || { echo "::error::missing $d/build-meta.env"; exit 1; }
+          suffix="$(grep -m1 '^SUFFIX=' "$d/build-meta.env" | cut -d= -f2-)" \
+            || { echo "::error::SUFFIX missing from $d/build-meta.env"; exit 1; }
+          copied=0
           # upload-artifact keeps the least common ancestor: the image/zip
           # land under OrangeFox/fox_<branch>/out/target/product/<device>/,
           # not at the artifact root. Find them; do not assume a flat layout.
@@ -1090,8 +1119,14 @@ jobs:
             rest="${base#OrangeFox-R12.0-Unofficial-}"
             ext="${rest##*.}"
             stem="${rest%.*}"
-            cp "$f" "release-assets/OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${suffix}.${ext}"
+            dest="release-assets/OrangeFox-R12.0_${BUILD_VER}-Unofficial-${stem}${suffix}.${ext}"
+            # Never let a leg overwrite another leg's asset (an empty suffix
+            # from a broken build-meta.env would collide with mainline).
+            [ ! -e "$dest" ] || { echo "::error::duplicate release asset '${dest}'"; exit 1; }
+            cp "$f" "$dest"
+            copied=$((copied + 1))
           done < <(find "$d" -type f \( -name 'OrangeFox*.img' -o -name 'OrangeFox*.zip' \) -print0)
+          [ "$copied" -gt 0 ] || { echo "::error::${d} produced no images to publish"; exit 1; }
         done
         [ -s "artifacts/build-${PRIMARY}/release-body.md" ] \
           || { echo "::error::release body is empty."; exit 1; }
