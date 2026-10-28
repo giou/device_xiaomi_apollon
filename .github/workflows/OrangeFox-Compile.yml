@@ -81,6 +81,9 @@ jobs:
     timeout-minutes: 720
     permissions:
       contents: read
+      # The kernel-cache self-heal deletes a poisoned entry with `gh cache
+      # delete`, which needs actions: write.
+      actions: write
     env:
       MANIFEST_BRANCH: '16.0'
       DEVICE_TREE_BRANCH: ${{ matrix.dt_branch }}
