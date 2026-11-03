@@ -37,11 +37,11 @@ OF_ENABLE_ALL_PARTITION_TOOLS := 1
 
 # Fox Addons payload (installer zip only; the .img carries none of this):
 # drop AromaFM (32-bit binary from 2012, segfaults on A16) and bundle
-# Magisk 31 instead of upstream's 30.7. "?=" keeps this overridable from
+# Magisk 31.1 instead of upstream's 30.7. "?=" keeps this overridable from
 # the environment - the builder passes an absolute path; local builds
 # fall back to the tree-relative copy fetched alongside the tree.
 FOX_DELETE_AROMAFM := 1
-FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.0.zip
+FOX_USE_SPECIFIC_MAGISK_ZIP ?= $(DEVICE_PATH)/magisk/Magisk-v31.1.zip
 
 # (minimal-delta: lptools/lpdump dropped - zero runtime invocations in
 # recovery source or vendor scripts; super backup uses dd, flashing uses
