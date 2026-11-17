@@ -18,6 +18,11 @@ name: OrangeFox - Build
 
 run-name: OrangeFox 16.0 for apollon (recovery)
 
+# Default deny: a job that declares no permissions block gets none. Every job
+# below opts in to exactly what it needs (prepare needs nothing, build reads
+# contents and writes the action cache, release writes contents).
+permissions: {}
+
 on:
   workflow_dispatch:
     inputs:
@@ -49,6 +54,9 @@ jobs:
     # build=single.
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    env:
+      # Dispatch inputs go through env, never straight into a run: block.
+      BUILD_INPUT: ${{ inputs.build }}
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -56,7 +64,7 @@ jobs:
       id: matrix
       run: |
         set -euo pipefail
-        if [[ "${{ inputs.build }}" == "both" ]]; then
+        if [[ "${BUILD_INPUT}" == "both" ]]; then
           echo 'matrix={"include":[{"variant":"wlan","dt_branch":"fox_16.0-wlan","fork_branch":"fox_16.0-apollon-wlan","suffix":"-wlan"},{"variant":"mainline","dt_branch":"fox_16.0","fork_branch":"fox_16.0-apollon","suffix":""}]}' >> "$GITHUB_OUTPUT"
         elif [[ "${GITHUB_REF_NAME}" == *wlan* ]]; then
           echo 'matrix={"include":[{"variant":"wlan","dt_branch":"fox_16.0-wlan","fork_branch":"fox_16.0-apollon-wlan","suffix":"-wlan"}]}' >> "$GITHUB_OUTPUT"
@@ -93,12 +101,22 @@ jobs:
       DEVICE_TREE: 'https://github.com/giou/device_xiaomi_apollon'
       ALLOW_MISSING_DEPENDENCIES: 'true'
       VARIANT_SUFFIX: ${{ matrix.suffix }}
+      # Matrix and dispatch values the scripts read; keeping them out of the
+      # run: bodies closes the template-injection class zizmor flags.
+      MATRIX_VARIANT: ${{ matrix.variant }}
+      MATRIX_FORK_BRANCH: ${{ matrix.fork_branch }}
+      PROBE_INPUT: ${{ inputs.probe }}
+      SYNC_JOBS_INPUT: ${{ inputs.sync_jobs }}
       PRIMARY_VARIANT: ${{ contains(github.ref_name, 'wlan') && 'wlan' || 'mainline' }}
       GOCACHE: ${{ github.workspace }}/.go-build-cache
       DEBIAN_FRONTEND: noninteractive
     steps:
     - name: Checkout
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, pinned 2026-10-17 (node24: silences the punycode/url.parse deprecations)
+      with:
+        # Nothing in this workflow pushes; keeping the token out of .git/config
+        # means it cannot ride along in an artifact (zizmor: artipacked).
+        persist-credentials: false
 
     - name: Validate config
       run: |
@@ -134,8 +152,7 @@ jobs:
         # One matrix leg per variant. The dispatched branch is the primary for
         # release notes and release version; the sibling is fetched by the
         # other leg. -wlan assets carry the WLAN/network features.
-        VARIANT="${{ matrix.variant }}"
-        VARIANT_SUFFIX="${{ matrix.suffix }}"
+        VARIANT="${MATRIX_VARIANT}"
         echo "Variant: ${VARIANT} (asset suffix '${VARIANT_SUFFIX}')"
         echo "Primary variant for this dispatch: ${PRIMARY_VARIANT}"
         echo "VARIANT=${VARIANT}" >> "${GITHUB_ENV}"
@@ -346,7 +363,7 @@ jobs:
         # count; the upstream script hardcodes -j4 for fox_16.0. Patch it to
         # the requested value for A/B measurement and fail loud if the
         # expected upstream line disappeared.
-        SYNC_JOBS_IN="${{ inputs.sync_jobs }}"
+        SYNC_JOBS_IN="${SYNC_JOBS_INPUT}"
         [ -z "${SYNC_JOBS_IN}" ] && SYNC_JOBS_IN=8
         # The bundled repo tool has no --depth; keep full history.
         if grep -q "repo sync -c -j4 --no-clone-bundle --no-tags" orangefox_sync.sh; then
@@ -511,7 +528,7 @@ jobs:
         set -euo pipefail
         FOX_ROOT="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}"
         cd "${FOX_ROOT}"
-        RECOVERY_FORK_BRANCH="${{ matrix.fork_branch }}"
+        RECOVERY_FORK_BRANCH="${MATRIX_FORK_BRANCH}"
         while IFS='|' read -r dir repo branch; do
           [[ -n "${dir}" ]] || continue
           branch="${branch/__RECOVERY_FORK_BRANCH__/${RECOVERY_FORK_BRANCH}}"
@@ -602,6 +619,11 @@ jobs:
       # and fall through to a rebuild instead of requiring a manual eviction.
       continue-on-error: true
       if: ${{ success() && steps.kernel-cache.outputs.cache-hit == 'true' }}
+      env:
+        # Step outputs are untrusted text: pass them through env and expand in
+        # the shell instead of interpolating them into the script.
+        KERNEL_KEY_SHA: ${{ steps.kernel-key.outputs.sha }}
+        KERNEL_KEY_CLANG: ${{ steps.kernel-key.outputs.clang }}
       run: |
         set -uo pipefail
         echo "valid=false" >> "$GITHUB_OUTPUT"
@@ -615,7 +637,7 @@ jobs:
           fi
         fi
         echo "::warning::cached kernel is missing or unreadable; deleting the entry and rebuilding"
-        gh cache delete "kernel-${{ matrix.variant }}-${{ steps.kernel-key.outputs.sha }}-${{ steps.kernel-key.outputs.clang }}" \
+        gh cache delete "kernel-${MATRIX_VARIANT}-${KERNEL_KEY_SHA}-${KERNEL_KEY_CLANG}" \
           -R "$GITHUB_REPOSITORY" || true
 
     - name: Build the kernel from LineageOS upstream
@@ -775,7 +797,7 @@ jobs:
         # build process is a visible, retryable failure).
         mka adbd "${BUILD_TARGET}image"
 
-        if [[ "${{ inputs.probe }}" == "of-ccache" ]]; then
+        if [[ "${PROBE_INPUT}" == "of-ccache" ]]; then
           echo "== of build ccache report (primary) =="
           ccache -s -v 2>/dev/null || true
           echo "ccache dir size:"
@@ -951,8 +973,8 @@ jobs:
       run: |
         set -euo pipefail
         {
-          echo "VARIANT=${{ matrix.variant }}"
-          echo "SUFFIX=${{ matrix.suffix }}"
+          echo "VARIANT=${MATRIX_VARIANT}"
+          echo "SUFFIX=${VARIANT_SUFFIX}"
           echo "DT_SHA=${COMMIT_ID}"
           echo "FORK_HEAD=${FORK_HEAD:-unknown}"
           echo "BANNER_VER=${BUILD_VER:-0}"
@@ -970,7 +992,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         set -euo pipefail
-        REPO="${{ github.repository }}"
+        REPO="${GITHUB_REPOSITORY}"
         TPL="${GITHUB_WORKSPACE}/OrangeFox/fox_${MANIFEST_BRANCH}/${DEVICE_PATH}/RELEASE_NOTES.md"
         [[ -f "${TPL}" ]] || { echo "::error::RELEASE_NOTES.md missing at ${TPL}."; exit 1; }
 

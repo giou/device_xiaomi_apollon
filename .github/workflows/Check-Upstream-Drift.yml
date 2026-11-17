@@ -33,6 +33,9 @@ on:
     - cron: '0 7 * * 1'
   workflow_dispatch:
 
+# Default deny; the single job opts in to contents: read below.
+permissions: {}
+
 defaults:
   run:
     shell: bash
